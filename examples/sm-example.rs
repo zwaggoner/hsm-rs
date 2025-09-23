@@ -1,82 +1,77 @@
-extern crate rsm;
+use std::cell::RefCell;
 
-struct State1Impl {}
-struct State2Impl {}
-struct State3Impl {}
+trait State {
+    fn entry(&mut self) -> Option<&mut dyn State>; 
+    fn on_event(&mut self) -> Option<&mut dyn State>;
+}
 
-impl<'a> rsm::StateHandlers<'a> for State1Impl {
-    fn entry(&self) -> Option<&'a rsm::State<'a>> {
-        println!("S1 Entry Handler");
+struct StateMachine<'a> {
+    top_state : &'a mut dyn State
+} 
+
+impl<'a> StateMachine<'a> {
+    fn run(&mut self) {
+        let mut parent_state : &mut dyn State = self.top_state;
+
+        while let Some(child_state) = parent_state.entry() {
+            parent_state = child_state;
+        }
+    }
+}
+
+struct State1 {}
+struct State2 {}
+
+impl State for State1 {
+    fn entry(&mut self) -> Option<&mut dyn State> {
+        println!("Entering State1");
 
         None
     }
 
-    fn event(&self) -> Option<&'a rsm::State<'a>> {
-        println!("S1 Event Handler");
-
-        None
-    }
-
-    fn exit(&self) -> Option<&'a rsm::State<'a>> {
-        println!("S1 Exit Handler");
+    fn on_event(&mut self) -> Option<&mut dyn State> {
+        println!("Got Event in State1");
 
         None
     }
 }
 
-impl<'a> rsm::StateHandlers<'a> for State2Impl {
-    fn entry(&self) -> Option<&'a rsm::State<'a>> {
-        println!("S2 Entry Handler");
+impl State for State2 {
+    fn entry(&mut self) -> Option<&mut dyn State> {
+        println!("Entering State2");
 
         None
     }
 
-    fn event(&self) -> Option<&'a rsm::State<'a>> {
-        println!("S2 Event Handler");
-
-        None
-    }
-
-    fn exit(&self) -> Option<&'a rsm::State<'a>> {
-        println!("S2 Exit Handler");
+    fn on_event(&mut self) -> Option<&mut dyn State> {
+        println!("Got Event in State2");
 
         None
     }
 }
 
-impl<'a> rsm::StateHandlers<'a> for State3Impl {
-    fn entry(&self) -> Option<&'a rsm::State<'a>> {
-        println!("S3 Entry Handler");
-
-        None
-    }
-
-    fn event(&self) -> Option<&'a rsm::State<'a>> {
-        println!("S3 Event Handler");
-
-        None
-    }
-
-    fn exit(&self) -> Option<&'a rsm::State<'a>> {
-        println!("S3 Exit Handler");
-
-        None
-    }
+struct TopState{
+    s1 : State1,
+    s2 : State2
 }
 
-struct Event1 { }
+impl State for TopState {
+    fn entry(&mut self) -> Option<&mut dyn State> {
+        println!("Entering TopState");
 
-impl rsm::Event for Event1 {}
+        Some(&mut self.s1)
+    }
+
+    fn on_event(&mut self) -> Option<&mut dyn State> {
+        println!("Got Event in TopState");
+
+        Some(&mut self.s2)
+    }
+}
 
 fn main() {
-    let s1: State1Impl = State1Impl {};
-    let s2: State2Impl = State2Impl {};
-    let s3: State3Impl = State3Impl {};
-    let state2: rsm::State = rsm::State{ child : None, handlers : &s2 };
-    let state1: rsm::State = rsm::State{ child : Some(&state2), handlers : &s1 };
-    let mut transition_event: rsm::QueueableEvent = rsm::QueueableEvent::new(&Event1{});
-    let mut sm: rsm::StateMachine = rsm::StateMachine::new(&state1);
+    let mut ts =  TopState{s1: State1{}, s2: State2{}};
+    let mut sm = StateMachine{ top_state: &mut ts };
 
-    sm.execute();
-    sm.post_event(&mut transition_event);        
+    sm.run();
 }
