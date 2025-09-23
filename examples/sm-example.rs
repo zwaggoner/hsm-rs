@@ -1,64 +1,68 @@
 extern crate rsm;
 
-struct State1Impl {}
-struct State2Impl {}
-struct State3Impl {}
+struct State1 {}
+struct State2 {}
 
-impl<'a> rsm::StateHandlers<'a> for State1Impl {
-    fn entry(&self) -> Option<&'a rsm::State<'a>> {
-        println!("S1 Entry Handler");
+struct TopState<'a> {
+    s1 : rsm::SMState<'a>,
+    s2 : rsm::SMState<'a>
+}
 
-        None
-    }
-
-    fn event(&self) -> Option<&'a rsm::State<'a>> {
-        println!("S1 Event Handler");
+impl<'a> rsm::State<'a> for State1 {
+    fn entry(&'a self) -> Option<&'a rsm::SMState<'a>> {
+        println!("S1 Entry");
 
         None
     }
 
-    fn exit(&self) -> Option<&'a rsm::State<'a>> {
-        println!("S1 Exit Handler");
+    fn event(&'a self) -> Option<&'a rsm::SMState<'a>> {
+        println!("S1 Event");
+
+        None
+    }
+
+    fn exit(&'a self) -> Option<&'a rsm::SMState<'a>> {
+        println!("S1 Exit");
 
         None
     }
 }
 
-impl<'a> rsm::StateHandlers<'a> for State2Impl {
-    fn entry(&self) -> Option<&'a rsm::State<'a>> {
-        println!("S2 Entry Handler");
+impl<'a> rsm::State<'a> for State2 {
+    fn entry(&'a self) -> Option<&'a rsm::SMState<'a>> {
+        println!("S2 Entry");
 
         None
     }
 
-    fn event(&self) -> Option<&'a rsm::State<'a>> {
-        println!("S2 Event Handler");
+    fn event(&'a self) -> Option<&'a rsm::SMState<'a>> {
+        println!("S2 Event");
 
         None
     }
 
-    fn exit(&self) -> Option<&'a rsm::State<'a>> {
-        println!("S2 Exit Handler");
+    fn exit(&'a self) -> Option<&'a rsm::SMState<'a>> {
+        println!("S2 Exit");
 
         None
     }
 }
 
-impl<'a> rsm::StateHandlers<'a> for State3Impl {
-    fn entry(&self) -> Option<&'a rsm::State<'a>> {
-        println!("S3 Entry Handler");
+impl<'a> rsm::State<'a> for TopState<'a> {
+    fn entry(&'a self) -> Option<&'a rsm::SMState<'a>> {
+        println!("TopState Entry");
+
+        Some(&self.s1)
+    }
+
+    fn event(&'a self) -> Option<&'a rsm::SMState<'a>> {
+        println!("TopState Event");
 
         None
     }
 
-    fn event(&self) -> Option<&'a rsm::State<'a>> {
-        println!("S3 Event Handler");
-
-        None
-    }
-
-    fn exit(&self) -> Option<&'a rsm::State<'a>> {
-        println!("S3 Exit Handler");
+    fn exit(&'a self) -> Option<&'a rsm::SMState<'a>> {
+        println!("TopState Exit");
 
         None
     }
@@ -69,14 +73,10 @@ struct Event1 { }
 impl rsm::Event for Event1 {}
 
 fn main() {
-    let s1: State1Impl = State1Impl {};
-    let s2: State2Impl = State2Impl {};
-    let s3: State3Impl = State3Impl {};
-    let state2: rsm::State = rsm::State{ child : None, handlers : &s2 };
-    let state1: rsm::State = rsm::State{ child : Some(&state2), handlers : &s1 };
-    let mut transition_event: rsm::QueueableEvent = rsm::QueueableEvent::new(&Event1{});
-    let mut sm: rsm::StateMachine = rsm::StateMachine::new(&state1);
+    let state1: State1 = State1{};
+    let state2: State2 = State2{};
+    let top_state = TopState { s1 : rsm::SMState::new(&state1), s2: rsm::SMState::new(&state2) };
+    let mut sm: rsm::StateMachine = rsm::StateMachine::new(&top_state);
 
     sm.execute();
-    sm.post_event(&mut transition_event);        
 }
