@@ -1,57 +1,55 @@
-pub trait State<'a> {
-    fn entry(&self) -> Option<&'a SMState<'a>>;
-    fn event(&self) -> Option<&'a SMState<'a>>;
-    fn exit(&self) -> Option<&'a SMState<'a>>;
+pub enum SMEvent<T> {
+    Timeout,
+    Custom(T)
+}
+
+pub trait State {
+    fn entry(&mut self) -> Option<&mut SMState>;
+    fn event(&mut self) -> Option<&mut SMState>;
+    fn exit(&mut self) -> Option<&mut SMState>;
 }
 
 pub struct SMState<'a> {
-    child: Option<&'a SMState<'a>>,
-    state: &'a (dyn State<'a> + Sync)
+    child: Option<&'a mut SMState<'a>>,
+    state: &'a mut (dyn State + Sync)
 }
 
 impl<'a> SMState<'a> {
-    pub fn new(state: &'a (dyn State<'a> + Sync)) -> Self {
+    pub fn new(state: &'a mut (dyn State + Sync)) -> Self {
         Self { state: state, child: None }
     }
 }
 
-pub trait Event { }
-
-pub struct QueueableEvent<'a> {
-    next: Option<&'a mut QueueableEvent<'a>>,
-    event: &'a (dyn Event + Sync)
+pub struct QueueableEvent<'a, T> {
+    next: Option<&'a mut QueueableEvent<'a, T>>,
+    event: SMEvent<T>
 }
 
-impl<'a> QueueableEvent<'a> {
-    pub fn new(event: &'a (dyn Event + Sync)) -> Self {
+impl<'a, T> QueueableEvent<'a, T> {
+    pub fn new(event: SMEvent<T>) -> Self {
         Self { next: None, event: event }
     }
 }
 
-pub struct StateMachine<'a> {
+pub struct StateMachine<'a, 'b, T> {
     top_state: SMState<'a>,
-    event_queue: Option<&'a mut QueueableEvent<'a>>,
+    event_queue: Option<&'b mut QueueableEvent<'b, T>>,
     init: bool
 }
 
-impl<'a> StateMachine<'a> {
-    pub fn new(top_state: &'a (dyn State<'a> + Sync)) -> Self {
+impl<'a, 'b, T> StateMachine<'a, 'b, T> {
+    pub fn new(top_state: &'a mut (dyn State + Sync)) -> Self {
         Self { top_state: SMState::new(top_state), event_queue: None, init: false }
     }
 
     pub fn execute(&mut self) { 
-        /*
         if !self.init {
-            self.top_state.handlers.entry();
+            let mut curr_state : &mut SMState = &mut self.top_state;
 
-            let mut curr_state = self.state;
-
-            while let Some(child) = curr_state.child {
-                child.handlers.entry();
-                curr_state = child;
+            while let Some(child) = curr_state.state.entry() { curr_state.child = Some(child);
+                curr_state = curr_state.child.as_mut().unwrap();
             }
         }
-        */
 
 //        while let Some(curr_event) = self.event_queue {
 //            let mut curr_state = self.state;
@@ -78,8 +76,7 @@ impl<'a> StateMachine<'a> {
 //        }
     }
 
-    pub fn post_event(&mut self, event: &'a mut QueueableEvent<'a>) {
-        /*
+    pub fn post_event(&mut self, event: &'b mut QueueableEvent<T>) {
         if let Some(mut last_event) = self.event_queue.as_mut() {
             while let Some(_)  = last_event.next {
                 last_event = last_event.next.as_mut().expect("");
@@ -90,7 +87,6 @@ impl<'a> StateMachine<'a> {
         else {
             self.event_queue = Some(event);
         }
-        */
     }
 }
 
