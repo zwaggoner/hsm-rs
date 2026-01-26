@@ -1,80 +1,83 @@
 extern crate rsm;
 
-struct State1 {}
-struct State2 {}
+use rsm::{Event, EventAction, StateMachine};
 
-struct TopState<'a> {
-    s1 : rsm::SMState<'a>,
-    s2 : rsm::SMState<'a>
+enum UserEvents {
+    TestEvent
 }
 
-impl<'a> rsm::State<'a> for State1 {
-    fn entry(&'a mut self) -> Option<&'a mut rsm::SMState<'a>> {
-        println!("S1 Entry");
+#[derive(Clone)]
+#[derive(Copy)]
+enum StateId {
+    TopState,
+    State1,
+    State2,
+    Max
+}
 
-        None
-    }
-
-    fn event(&'a mut self) -> Option<&'a mut rsm::SMState<'a>> {
-        println!("S1 Event");
-
-        None
-    }
-
-    fn exit(&'a mut self) -> Option<&'a mut rsm::SMState<'a>> {
-        println!("S1 Exit");
-
-        None
+impl rsm::StateId for StateId {
+    fn index(self) -> usize {
+        self as usize
     }
 }
 
-impl<'a> rsm::State<'a> for State2 {
-    fn entry(&'a mut self) -> Option<&'a mut rsm::SMState<'a>> {
-        println!("S2 Entry");
-
-        None
-    }
-
-    fn event(&'a mut self) -> Option<&'a mut rsm::SMState<'a>> {
-        println!("S2 Event");
-
-        None
-    }
-
-    fn exit(&'a mut self) -> Option<&'a mut rsm::SMState<'a>> {
-        println!("S2 Exit");
-
-        None
+impl Default for StateId {
+    fn default() -> Self {
+        StateId::Max
     }
 }
 
-impl<'a> rsm::State<'a> for TopState<'a> {
-    fn entry(&'a mut self) -> Option<&'a mut rsm::SMState<'a>> {
-        println!("TopState Entry");
-
-        Some(&mut self.s1)
-    }
-
-    fn event(&'a mut self) -> Option<&'a mut rsm::SMState<'a>> {
-        println!("TopState Event");
-
-        Some(&mut self.s2)
-    }
-
-    fn exit(&'a mut self) -> Option<&'a mut rsm::SMState<'a>> {
-        println!("TopState Exit");
-
-        None
-    }
+struct ActorCtx {
 }
 
-struct Empty{}
+struct Actor {
+    sm : StateMachine<ActorCtx, UserEvents, StateId, { StateId::Max as usize}>,
+    ctx : ActorCtx
+}
+
+impl Actor {
+    fn run(&mut self) {
+        self.sm.run(&mut self.ctx)
+    }
+
+    fn top_state(actor : &mut ActorCtx, event: Event<UserEvents>) -> EventAction::<StateId> {
+        match event {
+            Event::Entry => {
+                println!("Top State Entry");
+                EventAction::<StateId>::Transition(StateId::State1)
+            },
+            Event::Exit => {
+                println!("Top State Exit");
+                EventAction::<StateId>::Handled
+            }
+            _ => {
+                //println!("Unhandled Event {}", event);
+                EventAction::<StateId>::Unhandled
+            }
+        }
+    }
+
+    fn state1(actor : &mut ActorCtx, event: Event<UserEvents>) -> EventAction::<StateId> {
+        match event {
+            Event::Entry => {
+                println!("State1 Entry");
+                EventAction::<StateId>::Handled
+            },
+            Event::Exit => {
+                println!("State1 Exit");
+                EventAction::<StateId>::Handled
+            }
+            _ => {
+                //println!("Unhandled Event {}", event);
+                EventAction::<StateId>::Unhandled
+            }
+        }
+    }
+}
 
 fn main() {
-    let mut state1: State1 = State1{};
-    let mut state2: State2 = State2{};
-    let mut top_state = TopState { s1 : rsm::SMState::new(&mut state1), s2: rsm::SMState::new(&mut state2) };
-    let mut sm: rsm::StateMachine<Empty> = rsm::StateMachine::new(&mut top_state);
-
-    sm.execute();
+    let mut actor = Actor { sm : StateMachine::default(), ctx : ActorCtx{} };
+    actor.sm.register_top(StateId::TopState, Actor::top_state);
+    actor.sm.register(StateId::State1, Actor::state1);
+    actor.run()
 }

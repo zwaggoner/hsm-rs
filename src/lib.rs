@@ -1,92 +1,79 @@
-pub enum SMEvent<T> {
+pub enum Event<Et> {
+    Entry,
+    Exit,
     Timeout,
-    Custom(T)
+    External(Et)
 }
 
-pub trait State {
-    fn entry(&mut self) -> Option<&mut SMState>;
-    fn event(&mut self) -> Option<&mut SMState>;
-    fn exit(&mut self) -> Option<&mut SMState>;
+pub enum EventAction<Sid> {
+    Unhandled,
+    Handled,
+    Transition(Sid)
 }
 
-pub struct SMState<'a> {
-    child: Option<&'a mut SMState<'a>>,
-    state: &'a mut (dyn State + Sync)
+pub trait StateId : Copy + Default {
+    fn index(self) -> usize;
 }
 
-impl<'a> SMState<'a> {
-    pub fn new(state: &'a mut (dyn State + Sync)) -> Self {
-        Self { state: state, child: None }
-    }
+#[derive(Copy, Clone)]
+struct StateInfo<C, Et, Sid : StateId> {
+    child : Option<Sid>,
+    handler : fn(&mut C, Event<Et>) -> EventAction<Sid>
 }
 
-pub struct QueueableEvent<'a, T> {
-    next: Option<&'a mut QueueableEvent<'a, T>>,
-    event: SMEvent<T>
+pub struct StateMachine<C, Et, Sid : StateId, const N : usize> {
+    state_table : [StateInfo<C, Et, Sid>; N],
+    top : Sid
 }
 
-impl<'a, T> QueueableEvent<'a, T> {
-    pub fn new(event: SMEvent<T>) -> Self {
-        Self { next: None, event: event }
-    }
+fn default_handler<C, Et, Sid>(_: &mut C, _: Event<Et>) -> EventAction<Sid> {
+    EventAction::<Sid>::Unhandled
 }
 
-pub struct StateMachine<'a, 'b, T> {
-    top_state: SMState<'a>,
-    event_queue: Option<&'b mut QueueableEvent<'b, T>>,
-    init: bool
-}
-
-impl<'a, 'b, T> StateMachine<'a, 'b, T> {
-    pub fn new(top_state: &'a mut (dyn State + Sync)) -> Self {
-        Self { top_state: SMState::new(top_state), event_queue: None, init: false }
-    }
-
-    pub fn execute(&mut self) { 
-        if !self.init {
-            let mut curr_state : &mut SMState = &mut self.top_state;
-
-            while let Some(child) = curr_state.state.entry() { curr_state.child = Some(child);
-                curr_state = curr_state.child.as_mut().unwrap();
-            }
-        }
-
-//        while let Some(curr_event) = self.event_queue {
-//            let mut curr_state = self.state;
-//
-//            while let Some(child) = curr_state.child {
-//                if let Some(next_state) = child.handlers.event(curr_event.event) {
-//                    child.handlers.exit();
-//                    child = next_state;
-//                    child.handlers.entry();
-//
-//                    let mut new_state = child;
-//
-//                    while let Some(substate) = new_state.child {
-//                        substate.handlers.entry();
-//                        new_state = substate;
-//                    }
-//                    break;
-//                }
-//
-//                curr_state = child;
-//            }
-//
-//            self.event_queue = Some(self.event_queue.as_mut().expect(""));
-//        }
-    }
-
-    pub fn post_event(&mut self, event: &'b mut QueueableEvent<T>) {
-        if let Some(mut last_event) = self.event_queue.as_mut() {
-            while let Some(_)  = last_event.next {
-                last_event = last_event.next.as_mut().expect("");
-            }
-
-            last_event.next = Some(event);
-        }
-        else {
-            self.event_queue = Some(event);
+impl<C, Et, Sid : StateId, const N : usize> StateMachine<C, Et, Sid, N> {
+    pub fn default() -> Self {
+        Self {
+            state_table : core::array::from_fn(|_| StateInfo { child : None, handler: default_handler}),
+            top : Sid::default()
         }
     }
-}
 
+    pub fn register(&mut self, state_id : Sid, handler : fn(&mut C, Event<Et>) -> EventAction<Sid>) {
+        self.state_table[state_id.index()] = StateInfo { child : None, handler : handler }; 
+    }
+
+    pub fn register_top(&mut self, state_id : Sid, handler : fn(&mut C, Event<Et>) -> EventAction<Sid>) {
+        self.register(state_id, handler);
+        self.top = state_id
+    }
+
+    fn exit_state(&mut self, context : &mut C, state: Sid) {
+        if let Some(child) = self.state_table[state.index()].child { 
+            self.exit_state(context, child);
+            self.state_table[state.index()].child = None
+        }
+
+        _ = (self.state_table[state.index()].handler)(context, Event::Exit);
+    }
+
+    fn transition(&mut self, context: &mut C, state : Sid, new_child: Sid) {
+        if let Some(child) = self.state_table[state.index()].child {
+            self.exit_state(context, child)
+        }
+
+        self.enter_state(context, new_child)
+    }
+
+    fn enter_state(&mut self, context : &mut C, state: Sid) {
+        let result = (self.state_table[state.index()].handler)(context, Event::Entry);
+
+        if let EventAction::Transition(child) = result {
+            self.state_table[state.index()].child = Some(child);
+            self.enter_state(context, child);
+        }
+    }
+
+    pub fn run(&mut self, context : &mut C) {
+        self.enter_state(context, self.top)
+    }
+}
