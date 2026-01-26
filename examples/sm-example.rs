@@ -1,77 +1,83 @@
 use std::cell::RefCell;
 
-trait State {
-    fn entry(&mut self) -> Option<&mut dyn State>; 
-    fn on_event(&mut self) -> Option<&mut dyn State>;
+use rsm::{Event, EventAction, StateMachine};
+
+enum UserEvents {
+    TestEvent
 }
 
-struct StateMachine<'a> {
-    top_state : &'a mut dyn State
-} 
+#[derive(Clone)]
+#[derive(Copy)]
+enum StateId {
+    TopState,
+    State1,
+    State2,
+    Max
+}
 
-impl<'a> StateMachine<'a> {
+impl rsm::StateId for StateId {
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+
+impl Default for StateId {
+    fn default() -> Self {
+        StateId::Max
+    }
+}
+
+struct ActorCtx {
+}
+
+struct Actor {
+    sm : StateMachine<ActorCtx, UserEvents, StateId, { StateId::Max as usize}>,
+    ctx : ActorCtx
+}
+
+impl Actor {
     fn run(&mut self) {
-        let mut parent_state : &mut dyn State = self.top_state;
+        self.sm.run(&mut self.ctx)
+    }
 
-        while let Some(child_state) = parent_state.entry() {
-            parent_state = child_state;
+    fn top_state(actor : &mut ActorCtx, event: Event<UserEvents>) -> EventAction::<StateId> {
+        match event {
+            Event::Entry => {
+                println!("Top State Entry");
+                EventAction::<StateId>::Transition(StateId::State1)
+            },
+            Event::Exit => {
+                println!("Top State Exit");
+                EventAction::<StateId>::Handled
+            }
+            _ => {
+                //println!("Unhandled Event {}", event);
+                EventAction::<StateId>::Unhandled
+            }
+        }
+    }
+
+    fn state1(actor : &mut ActorCtx, event: Event<UserEvents>) -> EventAction::<StateId> {
+        match event {
+            Event::Entry => {
+                println!("State1 Entry");
+                EventAction::<StateId>::Handled
+            },
+            Event::Exit => {
+                println!("State1 Exit");
+                EventAction::<StateId>::Handled
+            }
+            _ => {
+                //println!("Unhandled Event {}", event);
+                EventAction::<StateId>::Unhandled
+            }
         }
     }
 }
 
-struct State1 {}
-struct State2 {}
-
-impl State for State1 {
-    fn entry(&mut self) -> Option<&mut dyn State> {
-        println!("Entering State1");
-
-        None
-    }
-
-    fn on_event(&mut self) -> Option<&mut dyn State> {
-        println!("Got Event in State1");
-
-        None
-    }
-}
-
-impl State for State2 {
-    fn entry(&mut self) -> Option<&mut dyn State> {
-        println!("Entering State2");
-
-        None
-    }
-
-    fn on_event(&mut self) -> Option<&mut dyn State> {
-        println!("Got Event in State2");
-
-        None
-    }
-}
-
-struct TopState{
-    s1 : State1,
-    s2 : State2
-}
-
-impl State for TopState {
-    fn entry(&mut self) -> Option<&mut dyn State> {
-        println!("Entering TopState");
-
-        Some(&mut self.s1)
-    }
-
-    fn on_event(&mut self) -> Option<&mut dyn State> {
-        println!("Got Event in TopState");
-
-        Some(&mut self.s2)
-    }
-}
-
 fn main() {
-    let mut ts =  TopState{s1: State1{}, s2: State2{}};
-    let mut sm = StateMachine{ top_state: &mut ts };
-
-    sm.run();
+    let mut actor = Actor { sm : StateMachine::default(), ctx : ActorCtx{} };
+    actor.sm.register_top(StateId::TopState, Actor::top_state);
+    actor.sm.register(StateId::State1, Actor::state1);
+    actor.run()
 }
