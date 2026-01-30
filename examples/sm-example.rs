@@ -1,83 +1,85 @@
-use std::cell::RefCell;
+extern crate rsm;
 
-use rsm::{Event, EventAction, StateMachine};
+use rsm::{Event, Action, StateMachine};
 
+#[derive(Clone, Copy)]
 enum UserEvents {
     TestEvent
 }
 
-#[derive(Clone)]
-#[derive(Copy)]
-enum StateId {
-    TopState,
-    State1,
-    State2,
-    Max
-}
-
-impl rsm::StateId for StateId {
-    fn index(self) -> usize {
-        self as usize
-    }
-}
-
-impl Default for StateId {
-    fn default() -> Self {
-        StateId::Max
-    }
-}
-
-struct ActorCtx {
-}
+struct ActorCtx {}
 
 struct Actor {
-    sm : StateMachine<ActorCtx, UserEvents, StateId, { StateId::Max as usize}>,
-    ctx : ActorCtx
+    sm : StateMachine<ActorCtx, UserEvents>,
+    context : ActorCtx
 }
 
 impl Actor {
-    fn run(&mut self) {
-        self.sm.run(&mut self.ctx)
-    }
-
-    fn top_state(actor : &mut ActorCtx, event: Event<UserEvents>) -> EventAction::<StateId> {
+    fn top_state(context: &mut ActorCtx, event: Event<UserEvents>) -> Action<ActorCtx, UserEvents> {
         match event {
             Event::Entry => {
                 println!("Top State Entry");
-                EventAction::<StateId>::Transition(StateId::State1)
+                Action::<ActorCtx, UserEvents>::Handled
             },
             Event::Exit => {
                 println!("Top State Exit");
-                EventAction::<StateId>::Handled
-            }
-            _ => {
-                //println!("Unhandled Event {}", event);
-                EventAction::<StateId>::Unhandled
+                Action::<ActorCtx, UserEvents>::Handled
+            },
+            _ =>  {
+                Action::<ActorCtx, UserEvents>::Unhandled
             }
         }
     }
 
-    fn state1(actor : &mut ActorCtx, event: Event<UserEvents>) -> EventAction::<StateId> {
+    fn state1(context : &mut ActorCtx, event: Event<UserEvents>) -> Action::<ActorCtx, UserEvents> {
         match event {
+            Event::GetParent => Action::<ActorCtx, UserEvents>::Parent(Self::top_state),
             Event::Entry => {
                 println!("State1 Entry");
-                EventAction::<StateId>::Handled
+                Action::<ActorCtx, UserEvents>::Handled
             },
             Event::Exit => {
                 println!("State1 Exit");
-                EventAction::<StateId>::Handled
+                Action::<ActorCtx, UserEvents>::Handled
             }
-            _ => {
-                //println!("Unhandled Event {}", event);
-                EventAction::<StateId>::Unhandled
+            Event::Other(user) => {
+                match user {
+                   UserEvents::TestEvent => Action::<ActorCtx, UserEvents>::Transition(Self::state2),
+                   _ => Action::<ActorCtx, UserEvents>::Unhandled,
+                }
+            },
+            _ => Action::<ActorCtx, UserEvents>::Unhandled
+        }
+    }
+
+    fn state2(context : &mut ActorCtx, event: Event<UserEvents>) -> Action::<ActorCtx, UserEvents> {
+        match event {
+            Event::GetParent => Action::<ActorCtx, UserEvents>::Parent(Self::top_state),
+            Event::Entry => {
+                println!("State2 Entry");
+                Action::<ActorCtx, UserEvents>::Handled
+            },
+            Event::Exit => {
+                println!("State2 Exit");
+                Action::<ActorCtx, UserEvents>::Handled
             }
+            Event::Other(user) => {
+                match user {
+                   UserEvents::TestEvent => Action::<ActorCtx, UserEvents>::Transition(Self::state2),
+                   _ => Action::<ActorCtx, UserEvents>::Unhandled,
+                }
+            },
+            _ => Action::<ActorCtx, UserEvents>::Unhandled
         }
     }
 }
 
 fn main() {
-    let mut actor = Actor { sm : StateMachine::default(), ctx : ActorCtx{} };
-    actor.sm.register_top(StateId::TopState, Actor::top_state);
-    actor.sm.register(StateId::State1, Actor::state1);
-    actor.run()
+    let mut actor = Actor { sm : StateMachine::default(), context : ActorCtx{} };
+
+    {
+        actor.sm.initial(&mut actor.context, Actor::state1);
+    }
+
+    actor.sm.dispatch(&mut actor.context, Event::<UserEvents>::Other(UserEvents::TestEvent));
 }
