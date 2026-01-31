@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-
 #[derive(Clone, Copy)]
 pub enum Event<Et : Copy> {
     GetParent,
@@ -19,20 +17,20 @@ pub enum Action<C, Et : Copy> {
 type State<C, Et : Copy> = fn(&mut C, Event<Et>) -> Action<C, Et>;
 
 pub struct StateMachine<C, Et : Copy, const MAX_NEST_DEPTH : usize = 32> {
-    path : RefCell<[Option<State<C, Et>>; MAX_NEST_DEPTH]>,
-    curr_depth : RefCell<usize>
+    path : [Option<State<C, Et>>; MAX_NEST_DEPTH],
+    curr_depth : usize
 }
 
 impl<C, Et : Copy, const MAX_NEST_DEPTH : usize> StateMachine<C, Et, MAX_NEST_DEPTH> {
     pub fn default() -> Self {
-            Self { path : RefCell::new([None; MAX_NEST_DEPTH]), curr_depth: RefCell::new(0) }
+            Self { path : [None; MAX_NEST_DEPTH], curr_depth: 0 }
     }
 
-    pub fn initial(&self, context : &mut C, state : State<C, Et>) {
+    pub fn initial(&mut self, context : &mut C, state : State<C, Et>) {
         self.enter_from(context, state, 0);
     }
 
-    fn enter_from(&self, context : &mut C, state : State<C, Et>, start : usize) {
+    fn enter_from(&mut self, context : &mut C, state : State<C, Et>, start : usize) {
         // Take initial transitions until we find the bottom-most initial state
         let mut initial_state = state;
 
@@ -49,7 +47,7 @@ impl<C, Et : Copy, const MAX_NEST_DEPTH : usize> StateMachine<C, Et, MAX_NEST_DE
         depth += 1;
 
         while let Action::Parent(parent_state) = (curr_state)(context, Event::GetParent) {
-            if self.path.borrow().contains(&Some(parent_state)) {
+            if self.path.contains(&Some(parent_state)) {
                 break;
             }
             else {
@@ -62,33 +60,25 @@ impl<C, Et : Copy, const MAX_NEST_DEPTH : usize> StateMachine<C, Et, MAX_NEST_DE
         for state_opt in reverse_path {
             if let Some(state) = state_opt {
                 depth -= 1;
-                self.path.borrow_mut()[depth] = Some(state);
+                self.path[depth] = Some(state);
             }
         }
 
-        while let Some(state) = self.path.borrow()[depth] {
+        while let Some(state) = self.path[depth] {
             (state)(context, Event::Entry);
             depth += 1;                
         }
         
-        *self.curr_depth.borrow_mut() = depth - 1;
+        self.curr_depth = depth - 1;
     }
 
-    fn exit_to(&self, context : &mut C, end : usize) {
-        let mut curr_depth : usize = 0;
-
-        {
-            curr_depth = *self.curr_depth.borrow();
-        }
-
-        for depth in (end..=curr_depth).rev() {
-            if let Some(state) = self.path.borrow()[depth] {
+    fn exit_to(&mut self, context : &mut C, end : usize) {
+        for depth in (end..=self.curr_depth).rev() {
+            if let Some(state) = self.path[depth] {
                 (state)(context, Event::Exit);
 
-                let mut curr_depth = self.curr_depth.borrow_mut();
-
-                if *curr_depth > 0 {
-                    *curr_depth -= 1;
+                if self.curr_depth > 0 {
+                    self.curr_depth -= 1;
                 }
                 else {
                     break;
@@ -97,14 +87,12 @@ impl<C, Et : Copy, const MAX_NEST_DEPTH : usize> StateMachine<C, Et, MAX_NEST_DE
         }
     }
 
-    pub fn dispatch(&self, context: &mut C, event : Event<Et>) {
-        let curr_depth : usize = *self.curr_depth.borrow();
-
-        for depth in (0..=curr_depth).rev() {
+    pub fn dispatch(&mut self, context: &mut C, event : Event<Et>) {
+        for depth in (0..=self.curr_depth).rev() {
             let mut curr_path : Option<State<C, Et>> = None;
 
             {
-                curr_path = self.path.borrow()[depth]
+                curr_path = self.path[depth]
             }
 
             if let Some(state) =  curr_path {
@@ -123,7 +111,7 @@ impl<C, Et : Copy, const MAX_NEST_DEPTH : usize> StateMachine<C, Et, MAX_NEST_DE
                             let mut transition_depth = depth;
 
                             while let Action::Parent(new_parent_state) = (curr_state)(context, Event::GetParent) {
-                                if let Some(shared_parent_depth) = self.path.borrow().iter().position(|&state| state == Some(new_parent_state)) {
+                                if let Some(shared_parent_depth) = self.path.iter().position(|&state| state == Some(new_parent_state)) {
                                     transition_depth = shared_parent_depth + 1;
                                     parent_state = Some(new_parent_state);
                                     break;
@@ -139,7 +127,6 @@ impl<C, Et : Copy, const MAX_NEST_DEPTH : usize> StateMachine<C, Et, MAX_NEST_DE
                                 self.enter_from(context, new_state, transition_depth);
                             }
                             else {
-                                println!("Hello?");
                                 // We reached the top with no shared parent, top state changed
                                 self.exit_to(context, 0);
                                 self.enter_from(context, new_state, 0);
@@ -153,6 +140,6 @@ impl<C, Et : Copy, const MAX_NEST_DEPTH : usize> StateMachine<C, Et, MAX_NEST_DE
         }
     }
 
-    pub fn run(&self, context : &mut C) {
+    pub fn run(&mut self, context : &mut C) {
     }
 }
