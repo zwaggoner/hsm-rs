@@ -42,7 +42,6 @@ impl Actor {
             }
             Event::Other(user) => match user {
                 UserEvents::TestEvent => Action::<ActorCtx, UserEvents>::Transition(Self::state2),
-                _ => Action::<ActorCtx, UserEvents>::Unhandled,
             },
             _ => Action::<ActorCtx, UserEvents>::Unhandled,
         }
@@ -61,7 +60,6 @@ impl Actor {
             }
             Event::Other(user) => match user {
                 UserEvents::TestEvent => Action::<ActorCtx, UserEvents>::Transition(Self::state2),
-                _ => Action::<ActorCtx, UserEvents>::Unhandled,
             },
             _ => Action::<ActorCtx, UserEvents>::Unhandled,
         }
