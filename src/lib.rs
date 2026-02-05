@@ -14,7 +14,7 @@ pub enum Action<C, Et: Copy> {
     Transition(State<C, Et>),
 }
 
-type State<C, Et: Copy> = fn(&mut C, Event<Et>) -> Action<C, Et>;
+type State<C, Et> = fn(&mut C, Event<Et>) -> Action<C, Et>;
 
 pub struct StateMachine<C, Et: Copy, const MAX_NEST_DEPTH: usize = 32> {
     path: [Option<State<C, Et>>; MAX_NEST_DEPTH],
@@ -136,5 +136,5 @@ impl<C, Et: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, Et, MAX_NEST_DEPT
         }
     }
 
-    pub fn run(&mut self, context: &mut C) {}
+    pub fn run(&mut self, _context: &mut C) {}
 }
