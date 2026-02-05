@@ -59,7 +59,7 @@ impl Actor {
                 Action::<ActorCtx, UserEvents>::Handled
             }
             Event::Other(user) => match user {
-                UserEvents::TestEvent => Action::<ActorCtx, UserEvents>::Transition(Self::state2),
+                UserEvents::TestEvent => Action::<ActorCtx, UserEvents>::Transition(Self::state1),
             },
             _ => Action::<ActorCtx, UserEvents>::Unhandled,
         }
@@ -76,8 +76,11 @@ fn main() {
         actor.sm.initial(&mut actor.context, Actor::state1);
     }
 
-    actor.sm.dispatch(
-        &mut actor.context,
-        Event::<UserEvents>::Other(UserEvents::TestEvent),
-    );
+    for _ in 0..2 {
+        actor.sm.dispatch(
+            &mut actor.context,
+            Event::<UserEvents>::Other(UserEvents::TestEvent),
+        );
+    }
+
 }
