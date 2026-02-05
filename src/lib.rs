@@ -1,3 +1,7 @@
+#![no_std]
+
+use core::ptr;
+
 #[derive(Clone, Copy)]
 pub enum Event<Et: Copy> {
     GetParent,
@@ -94,7 +98,7 @@ impl<C, Et: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, Et, MAX_NEST_DEPT
                 match (state)(context, event) {
                     Action::<C, Et>::Handled => break,
                     Action::<C, Et>::Transition(new_state) => {
-                        if std::ptr::fn_addr_eq(state, new_state) {
+                        if ptr::fn_addr_eq(state, new_state) {
                             // Exit and re-enter same state;
                             self.exit_to(context, depth);
                             self.enter_from(context, new_state, depth);
@@ -109,7 +113,7 @@ impl<C, Et: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, Et, MAX_NEST_DEPT
                             {
                                 if let Some(shared_parent_depth) = self.path[..self.curr_depth]
                                     .iter()
-                                    .position(|&state| std::ptr::fn_addr_eq(state.unwrap(), new_parent_state))
+                                    .position(|&state| ptr::fn_addr_eq(state.unwrap(), new_parent_state))
                                 {
                                     transition_depth = shared_parent_depth + 1;
                                     parent_state = Some(new_parent_state);
