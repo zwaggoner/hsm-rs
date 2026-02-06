@@ -1,6 +1,8 @@
+/*
 #![no_std]
-
 use core::ptr;
+*/
+use std::ptr;
 
 #[derive(Clone, Copy)]
 pub enum Event<Et: Copy> {
@@ -46,40 +48,36 @@ impl<C, Et: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, Et, MAX_NEST_DEPT
         }
 
         // Traverse parents until we find a shared one, or we reach the top
-        let mut depth: usize = start;
+        self.curr_depth = start;
         let mut curr_state = initial_state;
         let mut reverse_path: [Option<State<C, Et>>; MAX_NEST_DEPTH] = [None; MAX_NEST_DEPTH];
 
-        reverse_path[depth] = Some(curr_state);
-        depth += 1;
+        reverse_path[self.curr_depth] = Some(curr_state);
+        self.curr_depth += 1;
 
         while let Action::Parent(parent_state) = (curr_state)(context, Event::GetParent) {
-            if self.path[..depth].contains(&Some(parent_state)) {
+            if self.path[..self.curr_depth].contains(&Some(parent_state)) {
                 break;
             } else {
-                reverse_path[depth] = Some(parent_state);
+                reverse_path[self.curr_depth] = Some(parent_state);
                 curr_state = parent_state;
-                depth += 1;
+                self.curr_depth += 1;
             }
         }
 
-        for state_opt in reverse_path {
+        for (idx, state_opt) in (&reverse_path[start..self.curr_depth]).iter().enumerate() {
+            self.path[self.curr_depth - idx - 1] = *state_opt;
+        }
+
+        for state_opt in &self.path[start..self.curr_depth] {
             if let Some(state) = state_opt {
-                depth -= 1;
-                self.path[depth] = Some(state);
+                (state)(context, Event::Entry);
             }
         }
-
-        while let Some(state) = self.path[depth] {
-            (state)(context, Event::Entry);
-            depth += 1;
-        }
-
-        self.curr_depth = depth - 1;
     }
 
     fn exit_to(&mut self, context: &mut C, end: usize) {
-        for depth in (end..=self.curr_depth).rev() {
+        for depth in (end..self.curr_depth).rev() {
             if let Some(state) = self.path[depth] {
                 (state)(context, Event::Exit);
 
@@ -93,7 +91,7 @@ impl<C, Et: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, Et, MAX_NEST_DEPT
     }
 
     pub fn dispatch(&mut self, context: &mut C, event: Event<Et>) {
-        for depth in (0..=self.curr_depth).rev() {
+        for depth in (0..self.curr_depth).rev() {
             if let Some(state) = self.path[depth] {
                 match (state)(context, event) {
                     Action::<C, Et>::Handled => break,
@@ -111,9 +109,10 @@ impl<C, Et: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, Et, MAX_NEST_DEPT
                             while let Action::Parent(new_parent_state) =
                                 (curr_state)(context, Event::GetParent)
                             {
-                                if let Some(shared_parent_depth) = self.path[..self.curr_depth]
-                                    .iter()
-                                    .position(|&state| ptr::fn_addr_eq(state.unwrap(), new_parent_state))
+                                if let Some(shared_parent_depth) =
+                                    self.path[..self.curr_depth].iter().position(|&state| {
+                                        ptr::fn_addr_eq(state.unwrap(), new_parent_state)
+                                    })
                                 {
                                     transition_depth = shared_parent_depth + 1;
                                     parent_state = Some(new_parent_state);
@@ -124,6 +123,7 @@ impl<C, Et: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, Et, MAX_NEST_DEPT
                             }
 
                             if let Some(_shared_parent) = parent_state {
+                                // Exit up to the shared parent, then enter down from the new state
                                 self.exit_to(context, transition_depth);
                                 self.enter_from(context, new_state, transition_depth);
                             } else {

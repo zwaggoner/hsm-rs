@@ -15,7 +15,10 @@ struct Actor {
 }
 
 impl Actor {
-    fn top_state(_context: &mut ActorCtx, event: Event<UserEvents>) -> Action<ActorCtx, UserEvents> {
+    fn top_state(
+        _context: &mut ActorCtx,
+        event: Event<UserEvents>,
+    ) -> Action<ActorCtx, UserEvents> {
         match event {
             Event::Entry => {
                 println!("Top State Entry");
@@ -82,5 +85,4 @@ fn main() {
             Event::<UserEvents>::Other(UserEvents::TestEvent),
         );
     }
-
 }
