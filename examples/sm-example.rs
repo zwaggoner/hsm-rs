@@ -22,49 +22,49 @@ impl Actor {
         match event {
             Event::Entry => {
                 println!("Top State Entry");
-                Action::<ActorCtx, UserEvents>::Handled
+                Action::Handled
             }
             Event::Exit => {
                 println!("Top State Exit");
-                Action::<ActorCtx, UserEvents>::Handled
+                Action::Handled
             }
-            _ => Action::<ActorCtx, UserEvents>::Unhandled,
+            _ => Action::Unhandled,
         }
     }
 
     fn state1(_context: &mut ActorCtx, event: Event<UserEvents>) -> Action<ActorCtx, UserEvents> {
         match event {
-            Event::GetParent => Action::<ActorCtx, UserEvents>::Parent(Self::top_state),
+            Event::Parent(action) => action.parent(Self::top_state),
             Event::Entry => {
                 println!("State1 Entry");
-                Action::<ActorCtx, UserEvents>::Handled
+                Action::Handled
             }
             Event::Exit => {
                 println!("State1 Exit");
-                Action::<ActorCtx, UserEvents>::Handled
+                Action::Handled
             }
-            Event::Other(user) => match user {
-                UserEvents::TestEvent => Action::<ActorCtx, UserEvents>::Transition(Self::state2),
+            Event::Other{ event : user, action }  => match user {
+                UserEvents::TestEvent => action.transition(Self::state2),
             },
-            _ => Action::<ActorCtx, UserEvents>::Unhandled,
+            _ => Action::Unhandled,
         }
     }
 
     fn state2(_context: &mut ActorCtx, event: Event<UserEvents>) -> Action<ActorCtx, UserEvents> {
         match event {
-            Event::GetParent => Action::<ActorCtx, UserEvents>::Parent(Self::top_state),
+            Event::Parent(action) => action.parent(Self::top_state),
             Event::Entry => {
                 println!("State2 Entry");
-                Action::<ActorCtx, UserEvents>::Handled
+                Action::Handled
             }
             Event::Exit => {
                 println!("State2 Exit");
-                Action::<ActorCtx, UserEvents>::Handled
+                Action::Handled
             }
-            Event::Other(user) => match user {
-                UserEvents::TestEvent => Action::<ActorCtx, UserEvents>::Transition(Self::state1),
+            Event::Other{ event : user, action }  => match user {
+                UserEvents::TestEvent => action.transition(Self::state1),
             },
-            _ => Action::<ActorCtx, UserEvents>::Unhandled,
+            _ => Action::Unhandled,
         }
     }
 }
@@ -79,10 +79,10 @@ fn main() {
         actor.sm.initial(&mut actor.context, Actor::state1);
     }
 
-    for _ in 0..2 {
+    for _ in 0..3 {
         actor.sm.dispatch(
             &mut actor.context,
-            Event::<UserEvents>::Other(UserEvents::TestEvent),
+            UserEvents::TestEvent
         );
     }
 }
