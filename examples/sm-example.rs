@@ -43,7 +43,10 @@ impl Actor {
                 println!("State1 Exit");
                 Action::Handled
             }
-            Event::Other{ event : user, action }  => match user {
+            Event::Other {
+                event: user,
+                action,
+            } => match user {
                 UserEvents::TestEvent => action.transition(Self::state2),
             },
             _ => Action::Unhandled,
@@ -61,7 +64,10 @@ impl Actor {
                 println!("State2 Exit");
                 Action::Handled
             }
-            Event::Other{ event : user, action }  => match user {
+            Event::Other {
+                event: user,
+                action,
+            } => match user {
                 UserEvents::TestEvent => action.transition(Self::state1),
             },
             _ => Action::Unhandled,
@@ -80,9 +86,6 @@ fn main() {
     }
 
     for _ in 0..3 {
-        actor.sm.dispatch(
-            &mut actor.context,
-            UserEvents::TestEvent
-        );
+        actor.sm.dispatch(&mut actor.context, UserEvents::TestEvent);
     }
 }
