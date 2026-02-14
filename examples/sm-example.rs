@@ -1,6 +1,6 @@
 extern crate rsm;
 
-use rsm::{StateMachine};
+use rsm::StateMachine;
 
 #[derive(Copy, Clone)]
 enum UserEvent {
@@ -14,7 +14,7 @@ struct Actor {
     context: ActorCtx,
 }
 
-rsm::state!{
+rsm::state! {
     impl Top<ActorCtx, UserEvent> {
         fn initial(_context : &mut ActorCtx) -> Option<rsm::State::<ActorCtx, UserEvent>> {
             println!("Top State Initial");
@@ -28,7 +28,7 @@ rsm::state!{
     }
 }
 
-rsm::state!{
+rsm::state! {
     impl State1<ActorCtx, UserEvent> {
         fn entry(_context : &mut ActorCtx) {
             println!("State1 Entry");
@@ -44,7 +44,7 @@ rsm::state!{
     }
 }
 
-rsm::state!{
+rsm::state! {
     impl State2<ActorCtx, UserEvent> {
         fn entry(_context : &mut ActorCtx) {
             println!("State2 Entry");
@@ -59,8 +59,11 @@ fn main() {
     };
 
     {
-        actor.sm.initial(&mut actor.context, rsm::state!(runtime Top<ActorCtx, UserEvent>));
+        actor.sm.initial(
+            &mut actor.context,
+            rsm::state!(runtime Top<ActorCtx, UserEvent>),
+        );
     }
-    
+
     actor.sm.dispatch(&mut actor.context, UserEvent::TestEvent);
 }
