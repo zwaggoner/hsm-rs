@@ -18,9 +18,9 @@ macro_rules! state {
             $($body:tt)*
         }
     ) => {
-        state!{
+        rsm::state!{
             impl $name<$context, $event> {
-                const PARENT : Option<rsm::State::<$context, $event>> = Some(state!(runtime $parent<$context, $event>));
+                const PARENT : Option<rsm::State::<$context, $event>> = Some(rsm::state!(runtime $parent<$context, $event>));
 
                 $($body)*
             }
@@ -39,6 +39,7 @@ pub enum Action<C: 'static, E: 'static> {
     Transition(State<C, E>),
 }
 
+#[derive(Debug)]
 pub struct StateDesc<C: 'static, E: 'static> {
     parent: Option<State<C, E>>,
     initial: fn(&mut C) -> Option<State<C, E>>,
@@ -82,7 +83,7 @@ pub struct StateMachine<C: 'static, E: 'static, const MAX_NEST_DEPTH: usize = 32
     curr_depth: usize,
 }
 
-impl<C, E: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH> {
+impl<C /*: std::fmt::Debug*/, E: Copy /* + std::fmt::Debug */, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH> {
     pub fn default() -> Self {
         Self {
             path: [None; MAX_NEST_DEPTH],
@@ -95,20 +96,13 @@ impl<C, E: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH>
     }
 
     fn enter_from(&mut self, context: &mut C, state: State<C, E>, start: usize) {
-        let mut initial_state = state;
-
-        // Check for initial transition
-        if let Some(new_initial_state) = (state.initial)(context) {
-            initial_state = new_initial_state;
-        }
-
         // Traverse parents until we find a shared one, or we reach the top
-        self.curr_depth = start;
-        let mut curr_state = initial_state;
+        let mut new_depth = start;
+        let mut curr_state = state;
         let mut reverse_path: [Option<State<C, E>>; MAX_NEST_DEPTH] = [None; MAX_NEST_DEPTH];
 
-        reverse_path[self.curr_depth] = Some(curr_state);
-        self.curr_depth += 1;
+        reverse_path[new_depth] = Some(curr_state);
+        new_depth += 1;
 
         while let Some(parent_state) = curr_state.parent {
             if self.path[..self.curr_depth]
@@ -119,20 +113,28 @@ impl<C, E: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH>
             {
                 break;
             } else {
-                reverse_path[self.curr_depth] = Some(parent_state);
+                reverse_path[new_depth] = Some(parent_state);
                 curr_state = parent_state;
-                self.curr_depth += 1;
+                new_depth += 1;
             }
         }
 
-        for (idx, state_opt) in (&reverse_path[start..self.curr_depth]).iter().enumerate() {
-            self.path[self.curr_depth - idx - 1] = *state_opt;
+        for (idx, state_opt) in (&reverse_path[start..new_depth]).iter().enumerate() {
+            self.path[new_depth - idx - 1] = *state_opt;
         }
+
+        self.curr_depth = new_depth;
 
         for state_opt in &self.path[start..self.curr_depth] {
             if let Some(state) = state_opt {
                 (state.entry)(context);
             }
+        }
+
+        let leaf_state = self.path[self.curr_depth - 1].unwrap();
+
+        if let Some(initial_state) = (leaf_state.initial)(context) {
+            self.enter_from(context, initial_state, self.curr_depth);
         }
     }
 
