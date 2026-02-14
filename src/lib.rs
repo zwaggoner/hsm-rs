@@ -1,73 +1,89 @@
-/*
 #![no_std]
-use core::ptr;
-*/
-use std::ptr;
 
-#[derive(Clone, Copy)]
-pub struct Parentified {
-    _private: (),
+#[macro_export]
+macro_rules! state {
+    (
+        impl $name:ident$(::)?<$context:ident, $event:ident> {
+            $($body:tt)*
+        }
+    ) => {
+        struct $name;
+
+        impl rsm::StateImpl<$context, $event> for $name {
+            $($body)*
+        }
+    };
+    (
+        impl $name:ident$(::)?<$context:ident, $event:ident> : $parent:ident {
+            $($body:tt)*
+        }
+    ) => {
+        state!{
+            impl $name<$context, $event> {
+                const PARENT : Option<rsm::State::<$context, $event>> = Some(state!(runtime $parent<$context, $event>));
+
+                $($body)*
+            }
+        }
+    };
+    (runtime $s:ident$(::)?<$context:ident, $event:ident>) => {
+        &<$s as rsm::RuntimeState::<$context, $event>>::STATE
+    };
 }
 
-pub struct Parent<C, Et: Copy> {
-    state: State<C, Et>,
-}
+pub type State<C, E> = &'static StateDesc<C, E>;
 
-impl Parentified {
-    fn default() -> Self {
-        Self { _private: () }
-    }
-
-    pub fn parent<C, Et: Copy>(&self, state: State<C, Et>) -> Action<C, Et> {
-        Action::Parent(Parent { state: state })
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct Transitionable {
-    _private: (),
-}
-
-pub struct Transition<C, Et: Copy> {
-    target_state: State<C, Et>,
-}
-
-impl Transitionable {
-    fn default() -> Self {
-        Self { _private: () }
-    }
-
-    pub fn transition<C, Et: Copy>(&self, state: State<C, Et>) -> Action<C, Et> {
-        Action::Transition(Transition {
-            target_state: state,
-        })
-    }
-}
-
-#[derive(Clone, Copy)]
-pub enum Event<Et: Copy> {
-    Parent(Parentified),
-    Initial(Transitionable),
-    Entry,
-    Exit,
-    Other { event: Et, action: Transitionable },
-}
-
-pub enum Action<C, Et: Copy> {
-    Parent(Parent<C, Et>),
+pub enum Action<C : 'static, E : 'static> {
     Unhandled,
     Handled,
-    Transition(Transition<C, Et>),
+    Transition(State::<C, E>)
 }
 
-type State<C, Et> = fn(&mut C, Event<Et>) -> Action<C, Et>;
+pub struct StateDesc<C : 'static, E : 'static> {
+    parent : Option<State::<C, E>>,
+    initial: fn(&mut C) -> Option<State::<C, E>>,
+    entry: fn(&mut C),
+    handler: fn(&mut C, E) -> Action<C, E>,
+    exit : fn(&mut C),
+}
 
-pub struct StateMachine<C, Et: Copy, const MAX_NEST_DEPTH: usize = 32> {
-    path: [Option<State<C, Et>>; MAX_NEST_DEPTH],
+pub trait StateImpl<C : 'static, E : 'static> {
+    const PARENT : Option<State::<C, E>> = None;
+
+    fn initial(_context : &mut C) -> Option<State::<C, E>> {
+        None
+    }
+
+    fn entry(_context : &mut C) { }
+
+    fn handler(_context : &mut C, _event : E) -> Action<C, E> {
+        Action::Unhandled
+    }
+
+    fn exit(_context : &mut C) { }
+}
+
+pub trait RuntimeState<C : 'static, E : 'static> : StateImpl<C, E> {
+    const STATE: StateDesc::<C, E>;
+}
+
+impl<S : StateImpl<C, E>, C : 'static, E : 'static> RuntimeState<C, E> for S
+{
+    const STATE: StateDesc::<C, E> = StateDesc::<C, E> {
+        parent: S::PARENT,
+        initial: S::initial,
+        entry : S::entry,
+        handler : S::handler,
+        exit: S::exit,
+    };
+}
+
+pub struct StateMachine<C : 'static, E: 'static, const MAX_NEST_DEPTH: usize = 32> {
+    path: [Option<State<C, E>>; MAX_NEST_DEPTH],
     curr_depth: usize,
 }
 
-impl<C, Et: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, Et, MAX_NEST_DEPTH> {
+impl<C, E: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH> {
     pub fn default() -> Self {
         Self {
             path: [None; MAX_NEST_DEPTH],
@@ -75,34 +91,29 @@ impl<C, Et: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, Et, MAX_NEST_DEPT
         }
     }
 
-    pub fn initial(&mut self, context: &mut C, state: State<C, Et>) {
+    pub fn initial(&mut self, context: &mut C, state: State<C, E>) {
         self.enter_from(context, state, 0);
     }
 
-    fn enter_from(&mut self, context: &mut C, state: State<C, Et>, start: usize) {
-        // Take initial transitions until we find the bottom-most initial state
+    fn enter_from(&mut self, context: &mut C, state: State<C, E>, start: usize) {
         let mut initial_state = state;
 
-        while let Action::Transition(Transition {
-            target_state: new_state,
-        }) = (initial_state)(context, Event::Initial(Transitionable::default()))
-        {
-            initial_state = new_state;
+        // Check for initial transition
+        if let Some(new_initial_state) = (state.initial)(context) {
+            initial_state = new_initial_state;
         }
 
         // Traverse parents until we find a shared one, or we reach the top
         self.curr_depth = start;
         let mut curr_state = initial_state;
-        let mut reverse_path: [Option<State<C, Et>>; MAX_NEST_DEPTH] = [None; MAX_NEST_DEPTH];
+        let mut reverse_path: [Option<State<C, E>>; MAX_NEST_DEPTH] = [None; MAX_NEST_DEPTH];
 
         reverse_path[self.curr_depth] = Some(curr_state);
         self.curr_depth += 1;
 
-        while let Action::Parent(Parent {
-            state: parent_state,
-        }) = (curr_state)(context, Event::<Et>::Parent(Parentified::default()))
+        while let Some(parent_state) = curr_state.parent
         {
-            if self.path[..self.curr_depth].contains(&Some(parent_state)) {
+            if self.path[..self.curr_depth].iter().any(|curr_state : &Option<State<C, E>>| core::ptr::eq(curr_state.unwrap(), parent_state)) {
                 break;
             } else {
                 reverse_path[self.curr_depth] = Some(parent_state);
@@ -117,7 +128,7 @@ impl<C, Et: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, Et, MAX_NEST_DEPT
 
         for state_opt in &self.path[start..self.curr_depth] {
             if let Some(state) = state_opt {
-                (state)(context, Event::Entry);
+                (state.entry)(context);
             }
         }
     }
@@ -125,7 +136,8 @@ impl<C, Et: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, Et, MAX_NEST_DEPT
     fn exit_to(&mut self, context: &mut C, end: usize) {
         for depth in (end..self.curr_depth).rev() {
             if let Some(state) = self.path[depth] {
-                (state)(context, Event::Exit);
+                (state.exit)(context);
+                self.path[depth] = None;
 
                 if self.curr_depth > 0 {
                     self.curr_depth -= 1;
@@ -136,38 +148,27 @@ impl<C, Et: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, Et, MAX_NEST_DEPT
         }
     }
 
-    pub fn dispatch(&mut self, context: &mut C, event: Et) {
+    pub fn dispatch(&mut self, context: &mut C, event: E) {
         for depth in (0..self.curr_depth).rev() {
             if let Some(state) = self.path[depth] {
-                match (state)(
-                    context,
-                    Event::Other {
-                        event: event,
-                        action: Transitionable::default(),
-                    },
-                ) {
-                    Action::<C, Et>::Handled => break,
-                    Action::<C, Et>::Transition(Transition {
-                        target_state: new_state,
-                    }) => {
-                        if ptr::fn_addr_eq(state, new_state) {
+                match (state.handler)(context, event) {
+                    Action::<C, E>::Handled => break,
+                    Action::<C, E>::Transition(new_state) => {
+                        if core::ptr::eq(state, new_state) {
                             // Exit and re-enter same state;
                             self.exit_to(context, depth);
                             self.enter_from(context, new_state, depth);
                         } else {
                             // Find shared parent (if any)
                             let mut curr_state = new_state;
-                            let mut parent_state: Option<State<C, Et>> = None;
+                            let mut parent_state: Option<State<C, E>> = None;
                             let mut transition_depth = depth;
 
-                            while let Action::Parent(Parent {
-                                state: new_parent_state,
-                            }) =
-                                (curr_state)(context, Event::<Et>::Parent(Parentified::default()))
+                            while let Some(new_parent_state) = curr_state.parent
                             {
                                 if let Some(shared_parent_depth) =
                                     self.path[..self.curr_depth].iter().position(|&state| {
-                                        ptr::fn_addr_eq(state.unwrap(), new_parent_state)
+                                        core::ptr::eq(state.unwrap(), new_parent_state)
                                     })
                                 {
                                     transition_depth = shared_parent_depth + 1;
@@ -196,5 +197,5 @@ impl<C, Et: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, Et, MAX_NEST_DEPT
         }
     }
 
-    pub fn run(&mut self, _context: &mut C) {}
+    //pub fn run(&mut self, _context: &mut C) {}
 }
