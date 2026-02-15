@@ -3,44 +3,31 @@
 #[macro_export]
 macro_rules! state {
     (
-        impl $name:ident$(::)?<$context:ident, $event:ident> {
+        impl $name:ident {
             $($body:tt)*
         }
     ) => {
         struct $name;
 
-        impl rsm::StateImpl<$context, $event> for $name {
+        impl rsm::StateImpl for $name {
             $($body)*
         }
     };
-    (
-        impl $name:ident$(::)?<$context:ident, $event:ident> : $parent:ident {
-            $($body:tt)*
-        }
-    ) => {
-        rsm::state!{
-            impl $name<$context, $event> {
-                const PARENT : Option<rsm::State::<$context, $event>> = Some(rsm::state!(runtime $parent<$context, $event>));
-
-                $($body)*
-            }
-        }
-    };
-    (runtime $s:ident$(::)?<$context:ident, $event:ident>) => {
-        &<$s as rsm::RuntimeState::<$context, $event>>::STATE
+    (runtime $s:ty) => {
+        &<$s as rsm::RuntimeState>::STATE
     };
 }
 
 pub type State<C, E> = &'static StateDesc<C, E>;
 
-pub enum Action<C: 'static, E: 'static> {
+pub enum Action<C : 'static, E : 'static> {
     Unhandled,
     Handled,
     Transition(State<C, E>),
 }
 
 #[derive(Debug)]
-pub struct StateDesc<C: 'static, E: 'static> {
+pub struct StateDesc<C : 'static, E : 'static> {
     parent: Option<State<C, E>>,
     initial: fn(&mut C) -> Option<State<C, E>>,
     entry: fn(&mut C),
@@ -48,28 +35,36 @@ pub struct StateDesc<C: 'static, E: 'static> {
     exit: fn(&mut C),
 }
 
-pub trait StateImpl<C: 'static, E: 'static> {
-    const PARENT: Option<State<C, E>> = None;
+pub trait StateImpl {
+    type Context : 'static;
+    type Event : 'static;
 
-    fn initial(_context: &mut C) -> Option<State<C, E>> {
+    const PARENT: Option<State<Self::Context, Self::Event>> = None;
+
+    fn initial(
+        _context: &mut Self::Context,
+    ) -> Option<State<Self::Context, Self::Event>> {
         None
     }
 
-    fn entry(_context: &mut C) {}
+    fn entry(_context: &mut Self::Context) {}
 
-    fn handler(_context: &mut C, _event: E) -> Action<C, E> {
+    fn handler(
+        _context: &mut Self::Context,
+        _event: Self::Event,
+    ) -> Action<Self::Context, Self::Event> {
         Action::Unhandled
     }
 
-    fn exit(_context: &mut C) {}
+    fn exit(_context: &mut Self::Context) {}
 }
 
-pub trait RuntimeState<C: 'static, E: 'static>: StateImpl<C, E> {
-    const STATE: StateDesc<C, E>;
+pub trait RuntimeState: StateImpl {
+    const STATE: StateDesc<Self::Context, Self::Event>;
 }
 
-impl<S: StateImpl<C, E>, C: 'static, E: 'static> RuntimeState<C, E> for S {
-    const STATE: StateDesc<C, E> = StateDesc::<C, E> {
+impl<S: StateImpl> RuntimeState for S {
+    const STATE: StateDesc<S::Context, S::Event> = StateDesc::<S::Context, S::Event> {
         parent: S::PARENT,
         initial: S::initial,
         entry: S::entry,
@@ -78,12 +73,12 @@ impl<S: StateImpl<C, E>, C: 'static, E: 'static> RuntimeState<C, E> for S {
     };
 }
 
-pub struct StateMachine<C: 'static, E: 'static, const MAX_NEST_DEPTH: usize = 32> {
+pub struct StateMachine<C : 'static, E : 'static, const MAX_NEST_DEPTH: usize = 32> {
     path: [Option<State<C, E>>; MAX_NEST_DEPTH],
     curr_depth: usize,
 }
 
-impl<C /*: std::fmt::Debug*/, E: Copy /* + std::fmt::Debug */, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH> {
+impl<C ,E: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH> {
     pub fn default() -> Self {
         Self {
             path: [None; MAX_NEST_DEPTH],
