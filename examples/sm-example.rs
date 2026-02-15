@@ -81,10 +81,9 @@ fn main() {
     };
 
     {
-        actor.sm.initial(
-            &mut actor.context,
-            rsm::state!(runtime Top),
-        );
+        actor
+            .sm
+            .initial(&mut actor.context, rsm::state!(runtime Top));
     }
 
     for _ in 0..3 {

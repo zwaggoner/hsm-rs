@@ -20,14 +20,14 @@ macro_rules! state {
 
 pub type State<C, E> = &'static StateDesc<C, E>;
 
-pub enum Action<C : 'static, E : 'static> {
+pub enum Action<C: 'static, E: 'static> {
     Unhandled,
     Handled,
     Transition(State<C, E>),
 }
 
 #[derive(Debug)]
-pub struct StateDesc<C : 'static, E : 'static> {
+pub struct StateDesc<C: 'static, E: 'static> {
     parent: Option<State<C, E>>,
     initial: fn(&mut C) -> Option<State<C, E>>,
     entry: fn(&mut C),
@@ -36,14 +36,12 @@ pub struct StateDesc<C : 'static, E : 'static> {
 }
 
 pub trait StateImpl {
-    type Context : 'static;
-    type Event : 'static;
+    type Context: 'static;
+    type Event: 'static;
 
     const PARENT: Option<State<Self::Context, Self::Event>> = None;
 
-    fn initial(
-        _context: &mut Self::Context,
-    ) -> Option<State<Self::Context, Self::Event>> {
+    fn initial(_context: &mut Self::Context) -> Option<State<Self::Context, Self::Event>> {
         None
     }
 
@@ -73,12 +71,12 @@ impl<S: StateImpl> RuntimeState for S {
     };
 }
 
-pub struct StateMachine<C : 'static, E : 'static, const MAX_NEST_DEPTH: usize = 32> {
+pub struct StateMachine<C: 'static, E: 'static, const MAX_NEST_DEPTH: usize = 32> {
     path: [Option<State<C, E>>; MAX_NEST_DEPTH],
     curr_depth: usize,
 }
 
-impl<C ,E: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH> {
+impl<C, E: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH> {
     pub fn default() -> Self {
         Self {
             path: [None; MAX_NEST_DEPTH],
