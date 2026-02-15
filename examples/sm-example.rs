@@ -18,7 +18,7 @@ state! {
         type Context = ActorCtx;
         type Event = UserEvent;
 
-        fn initial(_context : &mut ActorCtx) -> Option<State::<ActorCtx, UserEvent>> {
+        fn initial(_context : &mut ActorCtx) -> Option<State::<Self>> {
             println!("Top State Initial");
 
             Some(state!(runtime State1))
@@ -35,14 +35,14 @@ state! {
         type Context = ActorCtx;
         type Event = UserEvent;
 
-        const PARENT : Option<State::<ActorCtx, UserEvent>> = Some(state!(runtime Top));
+        const PARENT : Option<State::<Self>> = Some(state!(runtime Top));
 
         fn entry(_context : &mut ActorCtx) {
             println!("State1 Entry");
         }
 
-        fn handler(_context: &mut ActorCtx, _event : &UserEvent) -> Action<ActorCtx, UserEvent> {
-            Action::Transition(state!(runtime State2))
+        fn handler(_context: &mut ActorCtx, _event : &UserEvent) -> Action<Self> {
+            Action::<Self>::Transition(state!(runtime State2))
         }
 
         fn exit(_context : &mut ActorCtx) {
@@ -56,14 +56,14 @@ state! {
         type Context = ActorCtx;
         type Event = UserEvent;
 
-        const PARENT : Option<State::<ActorCtx, UserEvent>> = Some(state!(runtime Top));
+        const PARENT : Option<State::<Self>> = Some(state!(runtime Top));
 
         fn entry(_context : &mut ActorCtx) {
             println!("State2 Entry");
         }
 
-        fn handler(_context: &mut ActorCtx, _event : &UserEvent) -> Action<ActorCtx, UserEvent> {
-            Action::Transition(state!(runtime State1))
+        fn handler(_context: &mut ActorCtx, _event : &UserEvent) -> Action<Self> {
+            Action::<Self>::Transition(state!(runtime State1))
         }
 
         fn exit(_context : &mut ActorCtx) {

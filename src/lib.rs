@@ -18,20 +18,23 @@ macro_rules! state {
     };
 }
 
-pub type State<C, E> = &'static StateDesc<C, E>;
+pub type _State<C, E> = &'static StateDesc<C, E>;
+pub type State<S> = _State<<S as StateImpl>::Context, <S as StateImpl>::Event>;
 
-pub enum Action<C: 'static, E: 'static> {
+pub enum _Action<C: 'static, E: 'static> {
     Unhandled,
     Handled,
-    Transition(State<C, E>),
+    Transition(_State<C, E>),
 }
+
+pub type Action<S> = _Action<<S as StateImpl>::Context, <S as StateImpl>::Event>;
 
 #[derive(Debug)]
 pub struct StateDesc<C: 'static, E: 'static> {
-    parent: Option<State<C, E>>,
-    initial: fn(&mut C) -> Option<State<C, E>>,
+    parent: Option<_State<C, E>>,
+    initial: fn(&mut C) -> Option<_State<C, E>>,
     entry: fn(&mut C),
-    handler: fn(&mut C, &E) -> Action<C, E>,
+    handler: fn(&mut C, &E) -> _Action<C, E>,
     exit: fn(&mut C),
 }
 
@@ -39,19 +42,16 @@ pub trait StateImpl {
     type Context: 'static;
     type Event: 'static;
 
-    const PARENT: Option<State<Self::Context, Self::Event>> = None;
+    const PARENT: Option<State<Self>> = None;
 
-    fn initial(_context: &mut Self::Context) -> Option<State<Self::Context, Self::Event>> {
+    fn initial(_context: &mut Self::Context) -> Option<State<Self>> {
         None
     }
 
     fn entry(_context: &mut Self::Context) {}
 
-    fn handler(
-        _context: &mut Self::Context,
-        _event: &Self::Event,
-    ) -> Action<Self::Context, Self::Event> {
-        Action::Unhandled
+    fn handler(_context: &mut Self::Context, _event: &Self::Event) -> Action<Self> {
+        Action::<Self>::Unhandled
     }
 
     fn exit(_context: &mut Self::Context) {}
@@ -72,7 +72,7 @@ impl<S: StateImpl> RuntimeState for S {
 }
 
 pub struct StateMachine<C: 'static, E: 'static, const MAX_NEST_DEPTH: usize = 32> {
-    path: [Option<State<C, E>>; MAX_NEST_DEPTH],
+    path: [Option<_State<C, E>>; MAX_NEST_DEPTH],
     curr_depth: usize,
 }
 
@@ -84,15 +84,15 @@ impl<C, E, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH> {
         }
     }
 
-    pub fn initial(&mut self, context: &mut C, state: State<C, E>) {
+    pub fn initial(&mut self, context: &mut C, state: _State<C, E>) {
         self.enter_from(context, state, 0);
     }
 
-    fn enter_from(&mut self, context: &mut C, state: State<C, E>, start: usize) {
+    fn enter_from(&mut self, context: &mut C, state: _State<C, E>, start: usize) {
         // Traverse parents until we find a shared one, or we reach the top
         let mut new_depth = start;
         let mut curr_state = state;
-        let mut reverse_path: [Option<State<C, E>>; MAX_NEST_DEPTH] = [None; MAX_NEST_DEPTH];
+        let mut reverse_path: [Option<_State<C, E>>; MAX_NEST_DEPTH] = [None; MAX_NEST_DEPTH];
 
         reverse_path[new_depth] = Some(curr_state);
         new_depth += 1;
@@ -100,7 +100,7 @@ impl<C, E, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH> {
         while let Some(parent_state) = curr_state.parent {
             if self.path[..self.curr_depth]
                 .iter()
-                .any(|curr_state: &Option<State<C, E>>| {
+                .any(|curr_state: &Option<_State<C, E>>| {
                     core::ptr::eq(curr_state.unwrap(), parent_state)
                 })
             {
@@ -150,8 +150,8 @@ impl<C, E, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH> {
         for depth in (0..self.curr_depth).rev() {
             if let Some(state) = self.path[depth] {
                 match (state.handler)(context, event) {
-                    Action::<C, E>::Handled => break,
-                    Action::<C, E>::Transition(new_state) => {
+                    _Action::<C, E>::Handled => break,
+                    _Action::<C, E>::Transition(new_state) => {
                         if core::ptr::eq(state, new_state) {
                             // Exit and re-enter same state;
                             self.exit_to(context, depth);
@@ -159,7 +159,7 @@ impl<C, E, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH> {
                         } else {
                             // Find shared parent (if any)
                             let mut curr_state = new_state;
-                            let mut parent_state: Option<State<C, E>> = None;
+                            let mut parent_state: Option<_State<C, E>> = None;
                             let mut transition_depth = depth;
 
                             while let Some(new_parent_state) = curr_state.parent {
