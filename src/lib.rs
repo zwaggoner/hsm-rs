@@ -28,7 +28,7 @@ pub enum Action<C: 'static, E: 'static> {
 
 #[derive(Debug)]
 pub struct StateDesc<C: 'static, E: 'static> {
-   parent: Option<State<C, E>>,
+    parent: Option<State<C, E>>,
     initial: fn(&mut C) -> Option<State<C, E>>,
     entry: fn(&mut C),
     handler: fn(&mut C, &E) -> Action<C, E>,
