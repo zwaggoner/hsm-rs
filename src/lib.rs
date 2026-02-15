@@ -28,10 +28,10 @@ pub enum Action<C: 'static, E: 'static> {
 
 #[derive(Debug)]
 pub struct StateDesc<C: 'static, E: 'static> {
-    parent: Option<State<C, E>>,
+   parent: Option<State<C, E>>,
     initial: fn(&mut C) -> Option<State<C, E>>,
     entry: fn(&mut C),
-    handler: fn(&mut C, E) -> Action<C, E>,
+    handler: fn(&mut C, &E) -> Action<C, E>,
     exit: fn(&mut C),
 }
 
@@ -49,7 +49,7 @@ pub trait StateImpl {
 
     fn handler(
         _context: &mut Self::Context,
-        _event: Self::Event,
+        _event: &Self::Event,
     ) -> Action<Self::Context, Self::Event> {
         Action::Unhandled
     }
@@ -76,7 +76,7 @@ pub struct StateMachine<C: 'static, E: 'static, const MAX_NEST_DEPTH: usize = 32
     curr_depth: usize,
 }
 
-impl<C, E: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH> {
+impl<C, E, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH> {
     pub fn default() -> Self {
         Self {
             path: [None; MAX_NEST_DEPTH],
@@ -146,7 +146,7 @@ impl<C, E: Copy, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH>
         }
     }
 
-    pub fn dispatch(&mut self, context: &mut C, event: E) {
+    pub fn dispatch(&mut self, context: &mut C, event: &E) {
         for depth in (0..self.curr_depth).rev() {
             if let Some(state) = self.path[depth] {
                 match (state.handler)(context, event) {

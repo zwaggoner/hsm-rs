@@ -2,12 +2,10 @@ extern crate rsm;
 
 use rsm::{Action, State, StateMachine, state};
 
-#[derive(Copy, Clone, Debug)]
 enum UserEvent {
     TestEvent,
 }
 
-#[derive(Debug)]
 struct ActorCtx {}
 
 struct Actor {
@@ -43,7 +41,7 @@ state! {
             println!("State1 Entry");
         }
 
-        fn handler(_context: &mut ActorCtx, _event : UserEvent) -> Action<ActorCtx, UserEvent> {
+        fn handler(_context: &mut ActorCtx, _event : &UserEvent) -> Action<ActorCtx, UserEvent> {
             Action::Transition(state!(runtime State2))
         }
 
@@ -64,7 +62,7 @@ state! {
             println!("State2 Entry");
         }
 
-        fn handler(_context: &mut ActorCtx, _event : UserEvent) -> Action<ActorCtx, UserEvent> {
+        fn handler(_context: &mut ActorCtx, _event : &UserEvent) -> Action<ActorCtx, UserEvent> {
             Action::Transition(state!(runtime State1))
         }
 
@@ -85,6 +83,6 @@ fn main() {
     }
 
     for _ in 0..3 {
-        actor.sm.dispatch(&mut actor.context, UserEvent::TestEvent);
+        actor.sm.dispatch(&mut actor.context, &UserEvent::TestEvent);
     }
 }
