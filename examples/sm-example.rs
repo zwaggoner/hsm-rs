@@ -1,6 +1,6 @@
 extern crate rsm;
 
-use rsm::StateMachine;
+use rsm::{Action, State, StateMachine, state};
 
 #[derive(Copy, Clone, Debug)]
 enum UserEvent {
@@ -15,15 +15,15 @@ struct Actor {
     context: ActorCtx,
 }
 
-rsm::state! {
+state! {
     impl Top {
         type Context = ActorCtx;
         type Event = UserEvent;
 
-        fn initial(_context : &mut ActorCtx) -> Option<rsm::State::<ActorCtx, UserEvent>> {
+        fn initial(_context : &mut ActorCtx) -> Option<State::<ActorCtx, UserEvent>> {
             println!("Top State Initial");
 
-            Some(rsm::state!(runtime State1))
+            Some(state!(runtime State1))
         }
 
         fn entry(_context : &mut ActorCtx) {
@@ -32,19 +32,19 @@ rsm::state! {
     }
 }
 
-rsm::state! {
+state! {
     impl State1 {
         type Context = ActorCtx;
         type Event = UserEvent;
 
-        const PARENT : Option<rsm::State::<ActorCtx, UserEvent>> = Some(rsm::state!(runtime Top));
+        const PARENT : Option<State::<ActorCtx, UserEvent>> = Some(state!(runtime Top));
 
         fn entry(_context : &mut ActorCtx) {
             println!("State1 Entry");
         }
 
-        fn handler(_context: &mut ActorCtx, _event : UserEvent) -> rsm::Action<ActorCtx, UserEvent> {
-            rsm::Action::Transition(rsm::state!(runtime State2))
+        fn handler(_context: &mut ActorCtx, _event : UserEvent) -> Action<ActorCtx, UserEvent> {
+            Action::Transition(state!(runtime State2))
         }
 
         fn exit(_context : &mut ActorCtx) {
@@ -53,19 +53,19 @@ rsm::state! {
     }
 }
 
-rsm::state! {
+state! {
     impl State2 {
         type Context = ActorCtx;
         type Event = UserEvent;
 
-        const PARENT : Option<rsm::State::<ActorCtx, UserEvent>> = Some(rsm::state!(runtime Top));
+        const PARENT : Option<State::<ActorCtx, UserEvent>> = Some(state!(runtime Top));
 
         fn entry(_context : &mut ActorCtx) {
             println!("State2 Entry");
         }
 
-        fn handler(_context: &mut ActorCtx, _event : UserEvent) -> rsm::Action<ActorCtx, UserEvent> {
-            rsm::Action::Transition(rsm::state!(runtime State1))
+        fn handler(_context: &mut ActorCtx, _event : UserEvent) -> Action<ActorCtx, UserEvent> {
+            Action::Transition(state!(runtime State1))
         }
 
         fn exit(_context : &mut ActorCtx) {
@@ -81,9 +81,7 @@ fn main() {
     };
 
     {
-        actor
-            .sm
-            .initial(&mut actor.context, rsm::state!(runtime Top));
+        actor.sm.initial(&mut actor.context, state!(runtime Top));
     }
 
     for _ in 0..3 {
