@@ -2,14 +2,16 @@ extern crate rsm;
 
 use rsm::{Action, State, StateMachine, state};
 
+#[derive(Debug)]
 enum UserEvent {
     TestEvent,
 }
 
+#[derive(Debug)]
 struct ActorCtx {}
 
 struct Actor {
-    sm: StateMachine<ActorCtx, UserEvent>,
+    sm: StateMachine<State1>,
     context: ActorCtx,
 }
 
@@ -79,7 +81,7 @@ fn main() {
     };
 
     {
-        actor.sm.initial(&mut actor.context, state!(runtime Top));
+        actor.sm.run(&mut actor.context);
     }
 
     for _ in 0..3 {

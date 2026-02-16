@@ -1,4 +1,4 @@
-#![no_std]
+//#![no_std]
 
 #[macro_export]
 macro_rules! state {
@@ -9,19 +9,19 @@ macro_rules! state {
     ) => {
         struct $name;
 
-        impl rsm::StateImpl for $name {
+        impl $crate::StateImpl for $name {
             $($body)*
         }
     };
     (runtime $s:ty) => {
-        &<$s as rsm::RuntimeState>::STATE
+        &<$s as $crate::RuntimeState>::STATE
     };
 }
 
 pub type _State<C, E> = &'static StateDesc<C, E>;
 pub type State<S> = _State<<S as StateImpl>::Context, <S as StateImpl>::Event>;
 
-pub enum _Action<C: 'static, E: 'static> {
+pub enum _Action<C: 'static + std::fmt::Debug, E: 'static + std::fmt::Debug> {
     Unhandled,
     Handled,
     Transition(_State<C, E>),
@@ -30,7 +30,8 @@ pub enum _Action<C: 'static, E: 'static> {
 pub type Action<S> = _Action<<S as StateImpl>::Context, <S as StateImpl>::Event>;
 
 #[derive(Debug)]
-pub struct StateDesc<C: 'static, E: 'static> {
+pub struct StateDesc<C: 'static + std::fmt::Debug, E: 'static + std::fmt::Debug> {
+    type_id: core::any::TypeId,
     parent: Option<_State<C, E>>,
     initial: fn(&mut C) -> Option<_State<C, E>>,
     entry: fn(&mut C),
@@ -39,8 +40,8 @@ pub struct StateDesc<C: 'static, E: 'static> {
 }
 
 pub trait StateImpl {
-    type Context: 'static;
-    type Event: 'static;
+    type Context: 'static + std::fmt::Debug;
+    type Event: 'static + std::fmt::Debug;
 
     const PARENT: Option<State<Self>> = None;
 
@@ -61,8 +62,9 @@ pub trait RuntimeState: StateImpl {
     const STATE: StateDesc<Self::Context, Self::Event>;
 }
 
-impl<S: StateImpl> RuntimeState for S {
+impl<S: StateImpl + 'static> RuntimeState for S {
     const STATE: StateDesc<S::Context, S::Event> = StateDesc::<S::Context, S::Event> {
+        type_id: core::any::TypeId::of::<S>(),
         parent: S::PARENT,
         initial: S::initial,
         entry: S::entry,
@@ -71,12 +73,13 @@ impl<S: StateImpl> RuntimeState for S {
     };
 }
 
-pub struct StateMachine<C: 'static, E: 'static, const MAX_NEST_DEPTH: usize = 32> {
-    path: [Option<_State<C, E>>; MAX_NEST_DEPTH],
+pub struct StateMachine<S : StateImpl, const MAX_NEST_DEPTH: usize = 32> 
+{
+    path: [Option<State<S>>; MAX_NEST_DEPTH],
     curr_depth: usize,
 }
 
-impl<C, E, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH> {
+impl<S : StateImpl + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NEST_DEPTH> {
     pub fn default() -> Self {
         Self {
             path: [None; MAX_NEST_DEPTH],
@@ -84,15 +87,11 @@ impl<C, E, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH> {
         }
     }
 
-    pub fn initial(&mut self, context: &mut C, state: _State<C, E>) {
-        self.enter_from(context, state, 0);
-    }
-
-    fn enter_from(&mut self, context: &mut C, state: _State<C, E>, start: usize) {
+    fn enter_from(&mut self, context: &mut S::Context, state: State<S>, start: usize) {
         // Traverse parents until we find a shared one, or we reach the top
         let mut new_depth = start;
         let mut curr_state = state;
-        let mut reverse_path: [Option<_State<C, E>>; MAX_NEST_DEPTH] = [None; MAX_NEST_DEPTH];
+        let mut reverse_path: [Option<State<S>>; MAX_NEST_DEPTH] = [None; MAX_NEST_DEPTH];
 
         reverse_path[new_depth] = Some(curr_state);
         new_depth += 1;
@@ -100,8 +99,8 @@ impl<C, E, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH> {
         while let Some(parent_state) = curr_state.parent {
             if self.path[..self.curr_depth]
                 .iter()
-                .any(|curr_state: &Option<_State<C, E>>| {
-                    core::ptr::eq(curr_state.unwrap(), parent_state)
+                .any(|curr_state: &Option<State<S>>| {
+                    curr_state.unwrap().type_id == parent_state.type_id
                 })
             {
                 break;
@@ -111,6 +110,7 @@ impl<C, E, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH> {
                 new_depth += 1;
             }
         }
+
 
         for (idx, state_opt) in (&reverse_path[start..new_depth]).iter().enumerate() {
             self.path[new_depth - idx - 1] = *state_opt;
@@ -131,7 +131,7 @@ impl<C, E, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH> {
         }
     }
 
-    fn exit_to(&mut self, context: &mut C, end: usize) {
+    fn exit_to(&mut self, context: &mut S::Context, end: usize) {
         for depth in (end..self.curr_depth).rev() {
             if let Some(state) = self.path[depth] {
                 (state.exit)(context);
@@ -146,12 +146,12 @@ impl<C, E, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH> {
         }
     }
 
-    pub fn dispatch(&mut self, context: &mut C, event: &E) {
+    pub fn dispatch(&mut self, context: &mut S::Context, event: &S::Event) {
         for depth in (0..self.curr_depth).rev() {
             if let Some(state) = self.path[depth] {
                 match (state.handler)(context, event) {
-                    _Action::<C, E>::Handled => break,
-                    _Action::<C, E>::Transition(new_state) => {
+                    Action::<S>::Handled => break,
+                    Action::<S>::Transition(new_state) => {
                         if core::ptr::eq(state, new_state) {
                             // Exit and re-enter same state;
                             self.exit_to(context, depth);
@@ -159,13 +159,13 @@ impl<C, E, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH> {
                         } else {
                             // Find shared parent (if any)
                             let mut curr_state = new_state;
-                            let mut parent_state: Option<_State<C, E>> = None;
+                            let mut parent_state: Option<State<S>> = None;
                             let mut transition_depth = depth;
 
                             while let Some(new_parent_state) = curr_state.parent {
                                 if let Some(shared_parent_depth) =
                                     self.path[..self.curr_depth].iter().position(|&state| {
-                                        core::ptr::eq(state.unwrap(), new_parent_state)
+                                        state.unwrap().type_id == new_parent_state.type_id
                                     })
                                 {
                                     transition_depth = shared_parent_depth + 1;
@@ -194,5 +194,7 @@ impl<C, E, const MAX_NEST_DEPTH: usize> StateMachine<C, E, MAX_NEST_DEPTH> {
         }
     }
 
-    //pub fn run(&mut self, _context: &mut C) {}
+    pub fn run(&mut self, context: &mut S::Context) {
+        self.enter_from(context, state!(runtime S), 0);
+    }
 }
