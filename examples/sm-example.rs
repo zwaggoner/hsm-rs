@@ -1,6 +1,6 @@
 extern crate rsm;
 
-use rsm::{Action, State, StateMachine, state};
+use rsm::{StateAction, State, StateMachine, state};
 
 #[derive(Debug)]
 enum UserEvent {
@@ -43,8 +43,8 @@ state! {
             println!("State1 Entry");
         }
 
-        fn handler(_context: &mut ActorCtx, _event : &UserEvent) -> Action<Self> {
-            Action::<Self>::Transition(state!(runtime State2))
+        fn handler(_context: &mut ActorCtx, _event : &UserEvent) -> StateAction<Self> {
+            StateAction::<Self>::Transition(state!(runtime State2))
         }
 
         fn exit(_context : &mut ActorCtx) {
@@ -64,8 +64,8 @@ state! {
             println!("State2 Entry");
         }
 
-        fn handler(_context: &mut ActorCtx, _event : &UserEvent) -> Action<Self> {
-            Action::<Self>::Transition(state!(runtime State1))
+        fn handler(_context: &mut ActorCtx, _event : &UserEvent) -> StateAction<Self> {
+            StateAction::<Self>::Transition(state!(runtime State1))
         }
 
         fn exit(_context : &mut ActorCtx) {

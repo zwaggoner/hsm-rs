@@ -9,7 +9,7 @@ macro_rules! state {
     ) => {
         struct $name;
 
-        impl $crate::StateImpl for $name {
+        impl $crate::HsmState for $name {
             $($body)*
         }
     };
@@ -18,28 +18,29 @@ macro_rules! state {
     };
 }
 
-pub type _State<C, E> = &'static StateDesc<C, E>;
-pub type State<S> = _State<<S as StateImpl>::Context, <S as StateImpl>::Event>;
+type _State<C, E> = &'static StateDesc<C, E>;
+pub type State<S> = _State<<S as HsmState>::Context, <S as HsmState>::Event>;
 
-pub enum _Action<C: 'static + std::fmt::Debug, E: 'static + std::fmt::Debug> {
+pub enum Action<C: 'static + std::fmt::Debug, E: 'static + std::fmt::Debug> {
     Unhandled,
     Handled,
     Transition(_State<C, E>),
 }
 
-pub type Action<S> = _Action<<S as StateImpl>::Context, <S as StateImpl>::Event>;
+pub type StateAction<S> = Action<<S as HsmState>::Context, <S as HsmState>::Event>;
 
+#[doc(hidden)]
 #[derive(Debug)]
 pub struct StateDesc<C: 'static + std::fmt::Debug, E: 'static + std::fmt::Debug> {
     type_id: core::any::TypeId,
     parent: Option<_State<C, E>>,
     initial: fn(&mut C) -> Option<_State<C, E>>,
     entry: fn(&mut C),
-    handler: fn(&mut C, &E) -> _Action<C, E>,
+    handler: fn(&mut C, &E) -> Action<C, E>,
     exit: fn(&mut C),
 }
 
-pub trait StateImpl {
+pub trait HsmState {
     type Context: 'static + std::fmt::Debug;
     type Event: 'static + std::fmt::Debug;
 
@@ -51,18 +52,18 @@ pub trait StateImpl {
 
     fn entry(_context: &mut Self::Context) {}
 
-    fn handler(_context: &mut Self::Context, _event: &Self::Event) -> Action<Self> {
-        Action::<Self>::Unhandled
+    fn handler(_context: &mut Self::Context, _event: &Self::Event) -> StateAction<Self> {
+        StateAction::<Self>::Unhandled
     }
 
     fn exit(_context: &mut Self::Context) {}
 }
 
-pub trait RuntimeState: StateImpl {
+pub trait RuntimeState: HsmState {
     const STATE: StateDesc<Self::Context, Self::Event>;
 }
 
-impl<S: StateImpl + 'static> RuntimeState for S {
+impl<S: HsmState + 'static> RuntimeState for S {
     const STATE: StateDesc<S::Context, S::Event> = StateDesc::<S::Context, S::Event> {
         type_id: core::any::TypeId::of::<S>(),
         parent: S::PARENT,
@@ -73,13 +74,13 @@ impl<S: StateImpl + 'static> RuntimeState for S {
     };
 }
 
-pub struct StateMachine<S : StateImpl, const MAX_NEST_DEPTH: usize = 32> 
+pub struct StateMachine<S : HsmState, const MAX_NEST_DEPTH: usize = 32> 
 {
     path: [Option<State<S>>; MAX_NEST_DEPTH],
     curr_depth: usize,
 }
 
-impl<S : StateImpl + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NEST_DEPTH> {
+impl<S : HsmState + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NEST_DEPTH> {
     pub fn default() -> Self {
         Self {
             path: [None; MAX_NEST_DEPTH],
@@ -150,8 +151,8 @@ impl<S : StateImpl + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_N
         for depth in (0..self.curr_depth).rev() {
             if let Some(state) = self.path[depth] {
                 match (state.handler)(context, event) {
-                    Action::<S>::Handled => break,
-                    Action::<S>::Transition(new_state) => {
+                    StateAction::<S>::Handled => break,
+                    StateAction::<S>::Transition(new_state) => {
                         if core::ptr::eq(state, new_state) {
                             // Exit and re-enter same state;
                             self.exit_to(context, depth);
