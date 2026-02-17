@@ -1,6 +1,6 @@
 extern crate rsm;
 
-use rsm::{StateAction, State, StateMachine, state};
+use rsm::{State, StateAction, StateMachine, state};
 
 #[derive(Debug)]
 enum UserEvent {

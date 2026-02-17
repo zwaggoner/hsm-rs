@@ -80,13 +80,12 @@ impl<S: HsmState + 'static> RuntimeState for S {
     };
 }
 
-pub struct StateMachine<S : HsmState, const MAX_NEST_DEPTH: usize = 32> 
-{
+pub struct StateMachine<S: HsmState, const MAX_NEST_DEPTH: usize = 32> {
     path: [Option<State<S>>; MAX_NEST_DEPTH],
     curr_depth: usize,
 }
 
-impl<S : HsmState + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NEST_DEPTH> {
+impl<S: HsmState + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NEST_DEPTH> {
     pub fn default() -> Self {
         Self {
             path: [None; MAX_NEST_DEPTH],
@@ -96,7 +95,7 @@ impl<S : HsmState + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NE
 
     fn get_path(state: State<S>) -> (usize, [Option<State<S>>; MAX_NEST_DEPTH]) {
         let mut curr_state = state;
-        let mut path : [Option<State<S>>; MAX_NEST_DEPTH] = [None; MAX_NEST_DEPTH];
+        let mut path: [Option<State<S>>; MAX_NEST_DEPTH] = [None; MAX_NEST_DEPTH];
         let mut depth = 0;
 
         path[depth] = Some(state);
@@ -111,14 +110,23 @@ impl<S : HsmState + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NE
             curr_state = parent;
         }
 
-        assert!(depth <= MAX_NEST_DEPTH, "Path to state exceeds MAX_NEST_DEPTH: {}, suggest increasing to {}", MAX_NEST_DEPTH, depth);
+        assert!(
+            depth <= MAX_NEST_DEPTH,
+            "Path to state exceeds MAX_NEST_DEPTH: {}, suggest increasing to {}",
+            MAX_NEST_DEPTH,
+            depth
+        );
 
         path[..depth].reverse();
 
         (depth, path)
     }
 
-    fn find_lca(&self, target_depth: usize, target_path: &[Option<State<S>>; MAX_NEST_DEPTH]) -> Option<usize> {
+    fn find_lca(
+        &self,
+        target_depth: usize,
+        target_path: &[Option<State<S>>; MAX_NEST_DEPTH],
+    ) -> Option<usize> {
         let max_search_depth = core::cmp::min(self.curr_depth, target_depth);
 
         // If the max depth of either tree is 0, there's no LCA
@@ -143,7 +151,7 @@ impl<S : HsmState + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NE
 
         Some(last_common_ancester)
     }
-    
+
     fn transition(&mut self, context: &mut S::Context, target: State<S>) {
         let mut transition_target = Some(target);
 
@@ -152,22 +160,36 @@ impl<S : HsmState + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NE
             let (target_depth, target_path) = Self::get_path(state);
 
             // Find LCA
-            let enter_exit_target : usize = if let Some(lca) = self.find_lca(target_depth, &target_path) { lca + 1 } else { 0 };
+            let enter_exit_target: usize =
+                if let Some(lca) = self.find_lca(target_depth, &target_path) {
+                    lca + 1
+                } else {
+                    0
+                };
 
             // Exit to LCA
             self.exit_to(context, enter_exit_target);
-            
+
             // Enter to leaf state
-            self.enter_from(context, enter_exit_target, &target_path[enter_exit_target..target_depth]);
+            self.enter_from(
+                context,
+                enter_exit_target,
+                &target_path[enter_exit_target..target_depth],
+            );
 
             // Check for initial transition in leaf state
             let leaf_state = self.path[self.curr_depth - 1].unwrap();
 
-            transition_target = (leaf_state.initial)(context); 
+            transition_target = (leaf_state.initial)(context);
         }
     }
 
-    fn enter_from(&mut self, context: &mut S::Context, start: usize, target_path: &[Option<State<S>>]) {
+    fn enter_from(
+        &mut self,
+        context: &mut S::Context,
+        start: usize,
+        target_path: &[Option<State<S>>],
+    ) {
         let mut depth = start;
 
         for state in target_path {
