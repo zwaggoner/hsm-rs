@@ -97,21 +97,23 @@ impl<S : HsmState + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NE
     fn get_path(state: State<S>) -> (usize, [Option<State<S>>; MAX_NEST_DEPTH]) {
         let mut curr_state = state;
         let mut path : [Option<State<S>>; MAX_NEST_DEPTH] = [None; MAX_NEST_DEPTH];
-        let mut reverse_path : [Option<State<S>>; MAX_NEST_DEPTH] = [None; MAX_NEST_DEPTH];
         let mut depth = 0;
 
-        reverse_path[depth] = Some(state);
+        path[depth] = Some(state);
         depth += 1;
 
         while let Some(parent) = curr_state.parent {
-            reverse_path[depth] = Some(parent);
+            if depth < MAX_NEST_DEPTH {
+                path[depth] = Some(parent);
+            }
+
             depth += 1;
             curr_state = parent;
         }
 
-        for (idx, state_opt) in (&reverse_path[..depth]).iter().enumerate() {
-            path[depth - idx - 1] = *state_opt;
-        }
+        assert!(depth <= MAX_NEST_DEPTH, "Path to state exceeds MAX_NEST_DEPTH: {}, suggest increasing to {}", MAX_NEST_DEPTH, depth);
+
+        path[..depth].reverse();
 
         (depth, path)
     }
@@ -142,25 +144,26 @@ impl<S : HsmState + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NE
         Some(last_common_ancester)
     }
     
-    fn transition(&mut self, context: &mut S::Context, state: State<S>) {
-        // Compute new tree
-        let (target_depth, target_path) = Self::get_path(state);
+    fn transition(&mut self, context: &mut S::Context, target: State<S>) {
+        let mut transition_target = Some(target);
 
-        // Find LCA
-        let enter_exit_target : usize = if let Some(lca) = self.find_lca(target_depth, &target_path) { lca + 1 } else { 0 };
+        while let Some(state) = transition_target {
+            // Compute new tree
+            let (target_depth, target_path) = Self::get_path(state);
 
-        // Exit to LCA
-        self.exit_to(context, enter_exit_target);
-        
-        // Enter to leaf state
-        self.enter_from(context, enter_exit_target, &target_path[enter_exit_target..target_depth]);
+            // Find LCA
+            let enter_exit_target : usize = if let Some(lca) = self.find_lca(target_depth, &target_path) { lca + 1 } else { 0 };
 
-        // Check for initial transition in leaf state
+            // Exit to LCA
+            self.exit_to(context, enter_exit_target);
+            
+            // Enter to leaf state
+            self.enter_from(context, enter_exit_target, &target_path[enter_exit_target..target_depth]);
 
-        let leaf_state = self.path[self.curr_depth - 1].unwrap();
+            // Check for initial transition in leaf state
+            let leaf_state = self.path[self.curr_depth - 1].unwrap();
 
-        if let Some(initial_state) = (leaf_state.initial)(context) {
-            self.transition(context, initial_state);
+            transition_target = (leaf_state.initial)(context); 
         }
     }
 
