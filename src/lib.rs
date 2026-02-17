@@ -40,6 +40,12 @@ pub struct StateDesc<C: 'static + std::fmt::Debug, E: 'static + std::fmt::Debug>
     exit: fn(&mut C),
 }
 
+impl<C: 'static + std::fmt::Debug, E: 'static + std::fmt::Debug> PartialEq for StateDesc<C, E> {
+    fn eq(&self, other: &Self) -> bool {
+        self.type_id == other.type_id
+    }
+}
+
 pub trait HsmState {
     type Context: 'static + std::fmt::Debug;
     type Event: 'static + std::fmt::Debug;
@@ -88,48 +94,86 @@ impl<S : HsmState + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NE
         }
     }
 
-    fn enter_from(&mut self, context: &mut S::Context, state: State<S>, start: usize) {
-        // Traverse parents until we find a shared one, or we reach the top
-        let mut new_depth = start;
+    fn get_path(state: State<S>) -> (usize, [Option<State<S>>; MAX_NEST_DEPTH]) {
         let mut curr_state = state;
-        let mut reverse_path: [Option<State<S>>; MAX_NEST_DEPTH] = [None; MAX_NEST_DEPTH];
+        let mut path : [Option<State<S>>; MAX_NEST_DEPTH] = [None; MAX_NEST_DEPTH];
+        let mut reverse_path : [Option<State<S>>; MAX_NEST_DEPTH] = [None; MAX_NEST_DEPTH];
+        let mut depth = 0;
 
-        reverse_path[new_depth] = Some(curr_state);
-        new_depth += 1;
+        reverse_path[depth] = Some(state);
+        depth += 1;
 
-        while let Some(parent_state) = curr_state.parent {
-            if self.path[..self.curr_depth]
-                .iter()
-                .any(|curr_state: &Option<State<S>>| {
-                    curr_state.unwrap().type_id == parent_state.type_id
-                })
-            {
-                break;
+        while let Some(parent) = curr_state.parent {
+            reverse_path[depth] = Some(parent);
+            depth += 1;
+            curr_state = parent;
+        }
+
+        for (idx, state_opt) in (&reverse_path[..depth]).iter().enumerate() {
+            path[depth - idx - 1] = *state_opt;
+        }
+
+        (depth, path)
+    }
+
+    fn find_lca(&self, target_depth: usize, target_path: &[Option<State<S>>; MAX_NEST_DEPTH]) -> Option<usize> {
+        let max_search_depth = core::cmp::min(self.curr_depth, target_depth);
+
+        // If the max depth of either tree is 0, there's no LCA
+        if max_search_depth == 0 {
+            return None;
+        }
+
+        // Same if top differ
+        if self.path[0].unwrap() != target_path[0].unwrap() {
+            return None;
+        }
+
+        let mut last_common_ancester = 0;
+
+        for i in 1..max_search_depth {
+            if self.path[i].unwrap() == target_path[i].unwrap() {
+                last_common_ancester = i;
             } else {
-                reverse_path[new_depth] = Some(parent_state);
-                curr_state = parent_state;
-                new_depth += 1;
+                break;
             }
         }
 
+        Some(last_common_ancester)
+    }
+    
+    fn transition(&mut self, context: &mut S::Context, state: State<S>) {
+        // Compute new tree
+        let (target_depth, target_path) = Self::get_path(state);
 
-        for (idx, state_opt) in (&reverse_path[start..new_depth]).iter().enumerate() {
-            self.path[new_depth - idx - 1] = *state_opt;
-        }
+        // Find LCA
+        let enter_exit_target : usize = if let Some(lca) = self.find_lca(target_depth, &target_path) { lca + 1 } else { 0 };
 
-        self.curr_depth = new_depth;
+        // Exit to LCA
+        self.exit_to(context, enter_exit_target);
+        
+        // Enter to leaf state
+        self.enter_from(context, enter_exit_target, &target_path[enter_exit_target..target_depth]);
 
-        for state_opt in &self.path[start..self.curr_depth] {
-            if let Some(state) = state_opt {
-                (state.entry)(context);
-            }
-        }
+        // Check for initial transition in leaf state
 
         let leaf_state = self.path[self.curr_depth - 1].unwrap();
 
         if let Some(initial_state) = (leaf_state.initial)(context) {
-            self.enter_from(context, initial_state, self.curr_depth);
+            self.transition(context, initial_state);
         }
+    }
+
+    fn enter_from(&mut self, context: &mut S::Context, start: usize, target_path: &[Option<State<S>>]) {
+        let mut depth = start;
+
+        for state in target_path {
+            self.path[depth] = *state;
+            (state.unwrap().entry)(context);
+            depth += 1;
+        }
+
+        self.curr_depth = depth;
     }
 
     fn exit_to(&mut self, context: &mut S::Context, end: usize) {
@@ -153,40 +197,7 @@ impl<S : HsmState + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NE
                 match (state.handler)(context, event) {
                     StateAction::<S>::Handled => break,
                     StateAction::<S>::Transition(new_state) => {
-                        if core::ptr::eq(state, new_state) {
-                            // Exit and re-enter same state;
-                            self.exit_to(context, depth);
-                            self.enter_from(context, new_state, depth);
-                        } else {
-                            // Find shared parent (if any)
-                            let mut curr_state = new_state;
-                            let mut parent_state: Option<State<S>> = None;
-                            let mut transition_depth = depth;
-
-                            while let Some(new_parent_state) = curr_state.parent {
-                                if let Some(shared_parent_depth) =
-                                    self.path[..self.curr_depth].iter().position(|&state| {
-                                        state.unwrap().type_id == new_parent_state.type_id
-                                    })
-                                {
-                                    transition_depth = shared_parent_depth + 1;
-                                    parent_state = Some(new_parent_state);
-                                    break;
-                                } else {
-                                    curr_state = new_parent_state;
-                                }
-                            }
-
-                            if let Some(_shared_parent) = parent_state {
-                                // Exit up to the shared parent, then enter down from the new state
-                                self.exit_to(context, transition_depth);
-                                self.enter_from(context, new_state, transition_depth);
-                            } else {
-                                // We reached the top with no shared parent, top state changed
-                                self.exit_to(context, 0);
-                                self.enter_from(context, new_state, 0);
-                            }
-                        }
+                        self.transition(context, new_state);
                         break;
                     }
                     _ => continue,
@@ -196,6 +207,6 @@ impl<S : HsmState + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NE
     }
 
     pub fn run(&mut self, context: &mut S::Context) {
-        self.enter_from(context, state!(runtime S), 0);
+        self.transition(context, state!(runtime S));
     }
 }
