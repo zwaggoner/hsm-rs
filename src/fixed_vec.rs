@@ -43,4 +43,3 @@ impl<T: Copy, const MAX_DEPTH: usize> DerefMut for FixedVec<T, MAX_DEPTH> {
         unsafe { core::slice::from_raw_parts_mut(self.arr.as_mut_ptr() as *mut T, self.len) }
     }
 }
-
