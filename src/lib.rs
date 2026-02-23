@@ -115,6 +115,12 @@ pub struct StateMachine<H: Hsm + 'static, const MAX_NEST_DEPTH: usize = 32> {
     path: FixedVec<State<H>, MAX_NEST_DEPTH>,
 }
 
+impl<H: Hsm, const MAX_NEST_DEPTH: usize> Default for StateMachine<H, MAX_NEST_DEPTH> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH> {
     pub fn new() -> Self {
         Self {
