@@ -74,7 +74,7 @@ impl HsmState<ActorSM> for State2 {
 
 fn main() {
     let mut actor = Actor {
-        sm: StateMachine::default(),
+        sm: StateMachine::new(),
         context: ActorCtx {},
     };
 

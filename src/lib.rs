@@ -1,8 +1,12 @@
-//#![no_std]
+#![no_std]
+
+use core::mem::MaybeUninit;
+use core::ops::Deref;
+use core::ops::DerefMut;
 
 pub trait Hsm {
-    type Context: 'static + std::fmt::Debug;
-    type Event: 'static + std::fmt::Debug;
+    type Context: 'static;
+    type Event: 'static;
 }
 
 pub type State<H> = &'static StateDesc<H>;
@@ -61,30 +65,81 @@ impl<H: Hsm + 'static, S: HsmState<H> + 'static> RuntimeState<H> for S {
     };
 }
 
-pub struct StateMachine<H: Hsm + 'static, const MAX_NEST_DEPTH: usize = 32> {
-    path: [Option<State<H>>; MAX_NEST_DEPTH],
-    curr_depth: usize,
+struct FixedVec<T : Copy, const MAX_DEPTH : usize = 32> {
+    arr: [MaybeUninit<T>; MAX_DEPTH],
+    len: usize,
 }
 
-impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH> {
-    pub fn default() -> Self {
-        Self {
-            path: [None; MAX_NEST_DEPTH],
-            curr_depth: 0,
+impl<T : Copy, const MAX_DEPTH : usize> FixedVec<T, MAX_DEPTH> {
+    fn new() -> Self {
+        FixedVec { 
+            arr: [const { MaybeUninit::uninit() }; MAX_DEPTH], 
+            len: 0 
         }
     }
 
-    fn get_path(state: State<H>) -> (usize, [Option<State<H>>; MAX_NEST_DEPTH]) {
+    fn push(&mut self, elem: T) {
+        assert!(self.len < MAX_DEPTH);
+        self.arr[self.len].write(elem);
+        self.len += 1;
+    }
+
+    fn pop(&mut self) -> Option<T> {
+        if self.len > 0 {
+            let elem = unsafe {
+                self.arr[self.len - 1].assume_init()
+            };
+
+            self.len -= 1;
+
+            Some(elem)
+        }
+        else {
+            None
+        }
+    }
+}
+
+impl<T : Copy, const MAX_DEPTH : usize> Deref for FixedVec<T, MAX_DEPTH> {
+    type Target = [T];
+
+    fn deref(&self) -> &[T] {
+        unsafe {
+            core::slice::from_raw_parts(self.arr.as_ptr() as *const T, self.len)
+        }
+    }
+}
+
+impl<T : Copy, const MAX_DEPTH : usize> DerefMut for FixedVec<T, MAX_DEPTH> {
+    fn deref_mut(&mut self) -> &mut [T] {
+        unsafe {
+            core::slice::from_raw_parts_mut(self.arr.as_mut_ptr() as *mut T, self.len)
+        }
+    }
+}
+
+pub struct StateMachine<H: Hsm + 'static, const MAX_NEST_DEPTH: usize = 32> {
+    path: FixedVec<State<H>, MAX_NEST_DEPTH>,
+}
+
+impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH> {
+    pub fn new() -> Self {
+        Self {
+            path: FixedVec::<State<H>, MAX_NEST_DEPTH>::new(),
+        }
+    }
+
+    fn get_path(state: State<H>) -> FixedVec<State<H>, MAX_NEST_DEPTH> {
         let mut curr_state = state;
-        let mut path: [Option<State<H>>; MAX_NEST_DEPTH] = [None; MAX_NEST_DEPTH];
+        let mut path: FixedVec::<State<H>, MAX_NEST_DEPTH> = FixedVec::new();
         let mut depth = 0;
 
-        path[depth] = Some(state);
+        path.push(state);
         depth += 1;
 
         while let Some(parent) = curr_state.parent {
             if depth < MAX_NEST_DEPTH {
-                path[depth] = Some(parent);
+                path.push(parent);
             }
 
             depth += 1;
@@ -98,17 +153,16 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH> {
             depth
         );
 
-        path[..depth].reverse();
+        path.reverse();
 
-        (depth, path)
+        path
     }
 
     fn find_lca(
         &self,
-        target_depth: usize,
-        target_path: &[Option<State<H>>; MAX_NEST_DEPTH],
+        target_path: &FixedVec<State<H>, MAX_NEST_DEPTH>
     ) -> Option<usize> {
-        let max_search_depth = core::cmp::min(self.curr_depth, target_depth);
+        let max_search_depth = core::cmp::min(self.path.len(), target_path.len());
 
         // If the max depth of either tree is 0, there's no LCA
         if max_search_depth == 0 {
@@ -116,14 +170,14 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH> {
         }
 
         // Same if top differ
-        if self.path[0].unwrap() != target_path[0].unwrap() {
+        if self.path.first() != target_path.first() {
             return None;
         }
 
         let mut last_common_ancester = 0;
 
         for i in 1..max_search_depth {
-            if self.path[i].unwrap() == target_path[i].unwrap() {
+            if self.path[i] == target_path[i] {
                 last_common_ancester = i;
             } else {
                 break;
@@ -138,11 +192,11 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH> {
 
         while let Some(state) = transition_target {
             // Compute new tree
-            let (target_depth, target_path) = Self::get_path(state);
+            let target_path = Self::get_path(state);
 
             // Find LCA
             let enter_exit_target: usize =
-                if let Some(lca) = self.find_lca(target_depth, &target_path) {
+                if let Some(lca) = self.find_lca(&target_path) {
                     lca + 1
                 } else {
                     0
@@ -152,62 +206,46 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH> {
             self.exit_to(context, enter_exit_target);
 
             // Enter to leaf state
-            self.enter_from(
+            self.enter(
                 context,
-                enter_exit_target,
-                &target_path[enter_exit_target..target_depth],
+                &target_path[enter_exit_target..],
             );
 
             // Check for initial transition in leaf state
-            let leaf_state = self.path[self.curr_depth - 1].unwrap();
-
-            transition_target = (leaf_state.initial)(context);
+            if let Some(leaf_state) = self.path.last() {
+                transition_target = (leaf_state.initial)(context);
+            }
         }
     }
 
-    fn enter_from(
+    fn enter(
         &mut self,
         context: &mut H::Context,
-        start: usize,
-        target_path: &[Option<State<H>>],
+        target_path: &[State<H>],
     ) {
-        let mut depth = start;
-
         for state in target_path {
-            self.path[depth] = *state;
-            (state.unwrap().entry)(context);
-            depth += 1;
+            self.path.push(state);
+            (state.entry)(context);
         }
-
-        self.curr_depth = depth;
     }
 
     fn exit_to(&mut self, context: &mut H::Context, end: usize) {
-        for depth in (end..self.curr_depth).rev() {
-            if let Some(state) = self.path[depth] {
+        for _ in (end..self.path.len()).rev() {
+            if let Some(state) = self.path.pop() {
                 (state.exit)(context);
-                self.path[depth] = None;
-
-                if self.curr_depth > 0 {
-                    self.curr_depth -= 1;
-                } else {
-                    break;
-                }
             }
         }
     }
 
     pub fn dispatch(&mut self, context: &mut H::Context, event: &H::Event) {
-        for depth in (0..self.curr_depth).rev() {
-            if let Some(state) = self.path[depth] {
-                match (state.handler)(context, event) {
-                    Action::<H>::Handled => break,
-                    Action::<H>::Transition(new_state) => {
-                        self.transition(context, new_state);
-                        break;
-                    }
-                    _ => continue,
+        for state in self.path.iter().rev() {
+            match (state.handler)(context, event) {
+                Action::<H>::Handled => break,
+                Action::<H>::Transition(new_state) => {
+                    self.transition(context, new_state);
+                    break;
                 }
+                _ => continue,
             }
         }
     }
