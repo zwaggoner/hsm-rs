@@ -172,7 +172,7 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH> {
     }
 
     fn exit_to(&mut self, context: &mut H::Context, end: usize) {
-        for _ in (end..self.path.len()).rev() {
+        while self.path.len() > end {
             if let Some(state) = self.path.pop() {
                 (state.exit)(context);
             }
