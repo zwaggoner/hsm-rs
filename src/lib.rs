@@ -1,8 +1,8 @@
 #![no_std]
 
-use core::mem::MaybeUninit;
-use core::ops::Deref;
-use core::ops::DerefMut;
+mod fixed_vec;
+
+use fixed_vec::FixedVec;
 
 pub trait Hsm {
     type Context: 'static;
@@ -63,52 +63,6 @@ impl<H: Hsm + 'static, S: HsmState<H> + 'static> RuntimeState<H> for S {
         handler: S::handler,
         exit: S::exit,
     };
-}
-
-struct FixedVec<T: Copy, const MAX_DEPTH: usize = 32> {
-    arr: [MaybeUninit<T>; MAX_DEPTH],
-    len: usize,
-}
-
-impl<T: Copy, const MAX_DEPTH: usize> FixedVec<T, MAX_DEPTH> {
-    fn new() -> Self {
-        FixedVec {
-            arr: [const { MaybeUninit::uninit() }; MAX_DEPTH],
-            len: 0,
-        }
-    }
-
-    fn push(&mut self, elem: T) {
-        assert!(self.len < MAX_DEPTH);
-        self.arr[self.len].write(elem);
-        self.len += 1;
-    }
-
-    fn pop(&mut self) -> Option<T> {
-        if self.len > 0 {
-            let elem = unsafe { self.arr[self.len - 1].assume_init() };
-
-            self.len -= 1;
-
-            Some(elem)
-        } else {
-            None
-        }
-    }
-}
-
-impl<T: Copy, const MAX_DEPTH: usize> Deref for FixedVec<T, MAX_DEPTH> {
-    type Target = [T];
-
-    fn deref(&self) -> &[T] {
-        unsafe { core::slice::from_raw_parts(self.arr.as_ptr() as *const T, self.len) }
-    }
-}
-
-impl<T: Copy, const MAX_DEPTH: usize> DerefMut for FixedVec<T, MAX_DEPTH> {
-    fn deref_mut(&mut self) -> &mut [T] {
-        unsafe { core::slice::from_raw_parts_mut(self.arr.as_mut_ptr() as *mut T, self.len) }
-    }
 }
 
 pub struct StateMachine<H: Hsm + 'static, const MAX_NEST_DEPTH: usize = 32> {
