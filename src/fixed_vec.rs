@@ -21,7 +21,7 @@ impl<T: Copy, const MAX_DEPTH: usize> FixedVec<T, MAX_DEPTH> {
     }
 
     pub(crate) fn pop(&mut self) -> Option<T> {
-        if self.len <= 0 {
+        if self.len == 0 {
             return None;
         }
 
