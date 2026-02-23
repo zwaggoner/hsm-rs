@@ -65,16 +65,16 @@ impl<H: Hsm + 'static, S: HsmState<H> + 'static> RuntimeState<H> for S {
     };
 }
 
-struct FixedVec<T : Copy, const MAX_DEPTH : usize = 32> {
+struct FixedVec<T: Copy, const MAX_DEPTH: usize = 32> {
     arr: [MaybeUninit<T>; MAX_DEPTH],
     len: usize,
 }
 
-impl<T : Copy, const MAX_DEPTH : usize> FixedVec<T, MAX_DEPTH> {
+impl<T: Copy, const MAX_DEPTH: usize> FixedVec<T, MAX_DEPTH> {
     fn new() -> Self {
-        FixedVec { 
-            arr: [const { MaybeUninit::uninit() }; MAX_DEPTH], 
-            len: 0 
+        FixedVec {
+            arr: [const { MaybeUninit::uninit() }; MAX_DEPTH],
+            len: 0,
         }
     }
 
@@ -86,35 +86,28 @@ impl<T : Copy, const MAX_DEPTH : usize> FixedVec<T, MAX_DEPTH> {
 
     fn pop(&mut self) -> Option<T> {
         if self.len > 0 {
-            let elem = unsafe {
-                self.arr[self.len - 1].assume_init()
-            };
+            let elem = unsafe { self.arr[self.len - 1].assume_init() };
 
             self.len -= 1;
 
             Some(elem)
-        }
-        else {
+        } else {
             None
         }
     }
 }
 
-impl<T : Copy, const MAX_DEPTH : usize> Deref for FixedVec<T, MAX_DEPTH> {
+impl<T: Copy, const MAX_DEPTH: usize> Deref for FixedVec<T, MAX_DEPTH> {
     type Target = [T];
 
     fn deref(&self) -> &[T] {
-        unsafe {
-            core::slice::from_raw_parts(self.arr.as_ptr() as *const T, self.len)
-        }
+        unsafe { core::slice::from_raw_parts(self.arr.as_ptr() as *const T, self.len) }
     }
 }
 
-impl<T : Copy, const MAX_DEPTH : usize> DerefMut for FixedVec<T, MAX_DEPTH> {
+impl<T: Copy, const MAX_DEPTH: usize> DerefMut for FixedVec<T, MAX_DEPTH> {
     fn deref_mut(&mut self) -> &mut [T] {
-        unsafe {
-            core::slice::from_raw_parts_mut(self.arr.as_mut_ptr() as *mut T, self.len)
-        }
+        unsafe { core::slice::from_raw_parts_mut(self.arr.as_mut_ptr() as *mut T, self.len) }
     }
 }
 
@@ -131,7 +124,7 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH> {
 
     fn get_path(state: State<H>) -> FixedVec<State<H>, MAX_NEST_DEPTH> {
         let mut curr_state = state;
-        let mut path: FixedVec::<State<H>, MAX_NEST_DEPTH> = FixedVec::new();
+        let mut path: FixedVec<State<H>, MAX_NEST_DEPTH> = FixedVec::new();
         let mut depth = 0;
 
         path.push(state);
@@ -158,10 +151,7 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH> {
         path
     }
 
-    fn find_lca(
-        &self,
-        target_path: &FixedVec<State<H>, MAX_NEST_DEPTH>
-    ) -> Option<usize> {
+    fn find_lca(&self, target_path: &FixedVec<State<H>, MAX_NEST_DEPTH>) -> Option<usize> {
         let max_search_depth = core::cmp::min(self.path.len(), target_path.len());
 
         // If the max depth of either tree is 0, there's no LCA
@@ -195,21 +185,17 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH> {
             let target_path = Self::get_path(state);
 
             // Find LCA
-            let enter_exit_target: usize =
-                if let Some(lca) = self.find_lca(&target_path) {
-                    lca + 1
-                } else {
-                    0
-                };
+            let enter_exit_target: usize = if let Some(lca) = self.find_lca(&target_path) {
+                lca + 1
+            } else {
+                0
+            };
 
             // Exit to LCA
             self.exit_to(context, enter_exit_target);
 
             // Enter to leaf state
-            self.enter(
-                context,
-                &target_path[enter_exit_target..],
-            );
+            self.enter(context, &target_path[enter_exit_target..]);
 
             // Check for initial transition in leaf state
             if let Some(leaf_state) = self.path.last() {
@@ -218,11 +204,7 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH> {
         }
     }
 
-    fn enter(
-        &mut self,
-        context: &mut H::Context,
-        target_path: &[State<H>],
-    ) {
+    fn enter(&mut self, context: &mut H::Context, target_path: &[State<H>]) {
         for state in target_path {
             self.path.push(state);
             (state.entry)(context);
