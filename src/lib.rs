@@ -1,13 +1,13 @@
 //#![no_std]
 
 pub trait Hsm {
-    type Context : 'static + std::fmt::Debug;
-    type Event : 'static + std::fmt::Debug;
+    type Context: 'static + std::fmt::Debug;
+    type Event: 'static + std::fmt::Debug;
 }
 
 pub type State<H> = &'static StateDesc<H>;
 
-pub enum Action<H : Hsm + 'static> {
+pub enum Action<H: Hsm + 'static> {
     Unhandled,
     Handled,
     Transition(State<H>),
@@ -15,7 +15,7 @@ pub enum Action<H : Hsm + 'static> {
 
 #[doc(hidden)]
 #[derive(Debug)]
-pub struct StateDesc<H : Hsm + 'static> {
+pub struct StateDesc<H: Hsm + 'static> {
     type_id: core::any::TypeId,
     parent: Option<State<H>>,
     initial: fn(&mut H::Context) -> Option<State<H>>,
@@ -30,7 +30,7 @@ impl<H: Hsm> PartialEq for StateDesc<H> {
     }
 }
 
-pub trait HsmState<H : Hsm + 'static> {
+pub trait HsmState<H: Hsm + 'static> {
     const PARENT: Option<State<H>> = None;
 
     fn initial(_context: &mut H::Context) -> Option<State<H>> {
@@ -46,11 +46,11 @@ pub trait HsmState<H : Hsm + 'static> {
     fn exit(_context: &mut H::Context) {}
 }
 
-pub trait RuntimeState<H: Hsm + 'static> : HsmState<H> {
+pub trait RuntimeState<H: Hsm + 'static>: HsmState<H> {
     const STATE: StateDesc<H>;
 }
 
-impl<H: Hsm + 'static, S: HsmState::<H> + 'static> RuntimeState<H> for S {
+impl<H: Hsm + 'static, S: HsmState<H> + 'static> RuntimeState<H> for S {
     const STATE: StateDesc<H> = StateDesc::<H> {
         type_id: core::any::TypeId::of::<S>(),
         parent: S::PARENT,

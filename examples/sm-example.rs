@@ -1,6 +1,6 @@
 extern crate rsm;
 
-use rsm::{Hsm, HsmState, State, Action, StateMachine, RuntimeState};
+use rsm::{Action, Hsm, HsmState, RuntimeState, State, StateMachine};
 
 #[derive(Debug)]
 enum UserEvent {
@@ -25,32 +25,31 @@ struct Actor {
 struct Top;
 
 impl HsmState<ActorSM> for Top {
-    fn initial(_context : &mut ActorCtx) -> Option<State::<ActorSM>> {
+    fn initial(_context: &mut ActorCtx) -> Option<State<ActorSM>> {
         println!("Top State Initial");
 
         Some(&State1::STATE)
     }
 
-    fn entry(_context : &mut ActorCtx) {
+    fn entry(_context: &mut ActorCtx) {
         println!("Top State Entry");
     }
 }
 
-
 struct State1;
 
 impl HsmState<ActorSM> for State1 {
-    const PARENT : Option<State::<ActorSM>> = Some(&Top::STATE);
+    const PARENT: Option<State<ActorSM>> = Some(&Top::STATE);
 
-    fn entry(_context : &mut ActorCtx) {
+    fn entry(_context: &mut ActorCtx) {
         println!("State1 Entry");
     }
 
-    fn handler(_context: &mut ActorCtx, _event : &UserEvent) -> Action<ActorSM> {
+    fn handler(_context: &mut ActorCtx, _event: &UserEvent) -> Action<ActorSM> {
         Action::<ActorSM>::Transition(&State2::STATE)
     }
 
-    fn exit(_context : &mut ActorCtx) {
+    fn exit(_context: &mut ActorCtx) {
         println!("State1 Exit");
     }
 }
@@ -58,17 +57,17 @@ impl HsmState<ActorSM> for State1 {
 struct State2;
 
 impl HsmState<ActorSM> for State2 {
-    const PARENT : Option<State::<ActorSM>> = Some(&Top::STATE);
+    const PARENT: Option<State<ActorSM>> = Some(&Top::STATE);
 
-    fn entry(_context : &mut ActorCtx) {
+    fn entry(_context: &mut ActorCtx) {
         println!("State2 Entry");
     }
 
-    fn handler(_context: &mut ActorCtx, _event : &UserEvent) -> Action<ActorSM> {
+    fn handler(_context: &mut ActorCtx, _event: &UserEvent) -> Action<ActorSM> {
         Action::<ActorSM>::Transition(&State1::STATE)
     }
 
-    fn exit(_context : &mut ActorCtx) {
+    fn exit(_context: &mut ActorCtx) {
         println!("State2 Exit");
     }
 }
