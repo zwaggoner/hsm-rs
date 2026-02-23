@@ -1,76 +1,57 @@
 //#![no_std]
 
-#[macro_export]
-macro_rules! state {
-    (
-        impl $name:ident {
-            $($body:tt)*
-        }
-    ) => {
-        struct $name;
-
-        impl $crate::HsmState for $name {
-            $($body)*
-        }
-    };
-    (runtime $s:ty) => {
-        &<$s as $crate::RuntimeState>::STATE
-    };
+pub trait Hsm {
+    type Context : 'static + std::fmt::Debug;
+    type Event : 'static + std::fmt::Debug;
 }
 
-type _State<C, E> = &'static StateDesc<C, E>;
-pub type State<S> = _State<<S as HsmState>::Context, <S as HsmState>::Event>;
+pub type State<H> = &'static StateDesc<H>;
 
-pub enum Action<C: 'static + std::fmt::Debug, E: 'static + std::fmt::Debug> {
+pub enum Action<H : Hsm + 'static> {
     Unhandled,
     Handled,
-    Transition(_State<C, E>),
+    Transition(State<H>),
 }
-
-pub type StateAction<S> = Action<<S as HsmState>::Context, <S as HsmState>::Event>;
 
 #[doc(hidden)]
 #[derive(Debug)]
-pub struct StateDesc<C: 'static + std::fmt::Debug, E: 'static + std::fmt::Debug> {
+pub struct StateDesc<H : Hsm + 'static> {
     type_id: core::any::TypeId,
-    parent: Option<_State<C, E>>,
-    initial: fn(&mut C) -> Option<_State<C, E>>,
-    entry: fn(&mut C),
-    handler: fn(&mut C, &E) -> Action<C, E>,
-    exit: fn(&mut C),
+    parent: Option<State<H>>,
+    initial: fn(&mut H::Context) -> Option<State<H>>,
+    entry: fn(&mut H::Context),
+    handler: fn(&mut H::Context, &H::Event) -> Action<H>,
+    exit: fn(&mut H::Context),
 }
 
-impl<C: 'static + std::fmt::Debug, E: 'static + std::fmt::Debug> PartialEq for StateDesc<C, E> {
+impl<H: Hsm> PartialEq for StateDesc<H> {
     fn eq(&self, other: &Self) -> bool {
         self.type_id == other.type_id
     }
 }
 
-pub trait HsmState {
-    type Context: 'static + std::fmt::Debug;
-    type Event: 'static + std::fmt::Debug;
+pub trait HsmState<H : Hsm + 'static> {
+    const PARENT: Option<State<H>> = None;
 
-    const PARENT: Option<State<Self>> = None;
-
-    fn initial(_context: &mut Self::Context) -> Option<State<Self>> {
+    fn initial(_context: &mut H::Context) -> Option<State<H>> {
         None
     }
 
-    fn entry(_context: &mut Self::Context) {}
+    fn entry(_context: &mut H::Context) {}
 
-    fn handler(_context: &mut Self::Context, _event: &Self::Event) -> StateAction<Self> {
-        StateAction::<Self>::Unhandled
+    fn handler(_context: &mut H::Context, _event: &H::Event) -> Action<H> {
+        Action::<H>::Unhandled
     }
 
-    fn exit(_context: &mut Self::Context) {}
+    fn exit(_context: &mut H::Context) {}
 }
 
-pub trait RuntimeState: HsmState {
-    const STATE: StateDesc<Self::Context, Self::Event>;
+pub trait RuntimeState<H: Hsm + 'static> : HsmState<H> {
+    const STATE: StateDesc<H>;
 }
 
-impl<S: HsmState + 'static> RuntimeState for S {
-    const STATE: StateDesc<S::Context, S::Event> = StateDesc::<S::Context, S::Event> {
+impl<H: Hsm + 'static, S: HsmState::<H> + 'static> RuntimeState<H> for S {
+    const STATE: StateDesc<H> = StateDesc::<H> {
         type_id: core::any::TypeId::of::<S>(),
         parent: S::PARENT,
         initial: S::initial,
@@ -80,12 +61,12 @@ impl<S: HsmState + 'static> RuntimeState for S {
     };
 }
 
-pub struct StateMachine<S: HsmState, const MAX_NEST_DEPTH: usize = 32> {
-    path: [Option<State<S>>; MAX_NEST_DEPTH],
+pub struct StateMachine<H: Hsm + 'static, const MAX_NEST_DEPTH: usize = 32> {
+    path: [Option<State<H>>; MAX_NEST_DEPTH],
     curr_depth: usize,
 }
 
-impl<S: HsmState + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NEST_DEPTH> {
+impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH> {
     pub fn default() -> Self {
         Self {
             path: [None; MAX_NEST_DEPTH],
@@ -93,9 +74,9 @@ impl<S: HsmState + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NES
         }
     }
 
-    fn get_path(state: State<S>) -> (usize, [Option<State<S>>; MAX_NEST_DEPTH]) {
+    fn get_path(state: State<H>) -> (usize, [Option<State<H>>; MAX_NEST_DEPTH]) {
         let mut curr_state = state;
-        let mut path: [Option<State<S>>; MAX_NEST_DEPTH] = [None; MAX_NEST_DEPTH];
+        let mut path: [Option<State<H>>; MAX_NEST_DEPTH] = [None; MAX_NEST_DEPTH];
         let mut depth = 0;
 
         path[depth] = Some(state);
@@ -125,7 +106,7 @@ impl<S: HsmState + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NES
     fn find_lca(
         &self,
         target_depth: usize,
-        target_path: &[Option<State<S>>; MAX_NEST_DEPTH],
+        target_path: &[Option<State<H>>; MAX_NEST_DEPTH],
     ) -> Option<usize> {
         let max_search_depth = core::cmp::min(self.curr_depth, target_depth);
 
@@ -152,7 +133,7 @@ impl<S: HsmState + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NES
         Some(last_common_ancester)
     }
 
-    fn transition(&mut self, context: &mut S::Context, target: State<S>) {
+    fn transition(&mut self, context: &mut H::Context, target: State<H>) {
         let mut transition_target = Some(target);
 
         while let Some(state) = transition_target {
@@ -186,9 +167,9 @@ impl<S: HsmState + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NES
 
     fn enter_from(
         &mut self,
-        context: &mut S::Context,
+        context: &mut H::Context,
         start: usize,
-        target_path: &[Option<State<S>>],
+        target_path: &[Option<State<H>>],
     ) {
         let mut depth = start;
 
@@ -201,7 +182,7 @@ impl<S: HsmState + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NES
         self.curr_depth = depth;
     }
 
-    fn exit_to(&mut self, context: &mut S::Context, end: usize) {
+    fn exit_to(&mut self, context: &mut H::Context, end: usize) {
         for depth in (end..self.curr_depth).rev() {
             if let Some(state) = self.path[depth] {
                 (state.exit)(context);
@@ -216,12 +197,12 @@ impl<S: HsmState + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NES
         }
     }
 
-    pub fn dispatch(&mut self, context: &mut S::Context, event: &S::Event) {
+    pub fn dispatch(&mut self, context: &mut H::Context, event: &H::Event) {
         for depth in (0..self.curr_depth).rev() {
             if let Some(state) = self.path[depth] {
                 match (state.handler)(context, event) {
-                    StateAction::<S>::Handled => break,
-                    StateAction::<S>::Transition(new_state) => {
+                    Action::<H>::Handled => break,
+                    Action::<H>::Transition(new_state) => {
                         self.transition(context, new_state);
                         break;
                     }
@@ -231,7 +212,7 @@ impl<S: HsmState + 'static, const MAX_NEST_DEPTH: usize> StateMachine<S, MAX_NES
         }
     }
 
-    pub fn run(&mut self, context: &mut S::Context) {
-        self.transition(context, state!(runtime S));
+    pub fn run(&mut self, context: &mut H::Context, initial: State<H>) {
+        self.transition(context, initial);
     }
 }

@@ -1,6 +1,6 @@
 extern crate rsm;
 
-use rsm::{State, StateAction, StateMachine, state};
+use rsm::{Hsm, HsmState, State, Action, StateMachine, RuntimeState};
 
 #[derive(Debug)]
 enum UserEvent {
@@ -10,67 +10,66 @@ enum UserEvent {
 #[derive(Debug)]
 struct ActorCtx {}
 
+struct ActorSM;
+
+impl Hsm for ActorSM {
+    type Event = UserEvent;
+    type Context = ActorCtx;
+}
+
 struct Actor {
-    sm: StateMachine<State1>,
+    sm: StateMachine<ActorSM>,
     context: ActorCtx,
 }
 
-state! {
-    impl Top {
-        type Context = ActorCtx;
-        type Event = UserEvent;
+struct Top;
 
-        fn initial(_context : &mut ActorCtx) -> Option<State::<Self>> {
-            println!("Top State Initial");
+impl HsmState<ActorSM> for Top {
+    fn initial(_context : &mut ActorCtx) -> Option<State::<ActorSM>> {
+        println!("Top State Initial");
 
-            Some(state!(runtime State1))
-        }
+        Some(&State1::STATE)
+    }
 
-        fn entry(_context : &mut ActorCtx) {
-            println!("Top State Entry");
-        }
+    fn entry(_context : &mut ActorCtx) {
+        println!("Top State Entry");
     }
 }
 
-state! {
-    impl State1 {
-        type Context = ActorCtx;
-        type Event = UserEvent;
 
-        const PARENT : Option<State::<Self>> = Some(state!(runtime Top));
+struct State1;
 
-        fn entry(_context : &mut ActorCtx) {
-            println!("State1 Entry");
-        }
+impl HsmState<ActorSM> for State1 {
+    const PARENT : Option<State::<ActorSM>> = Some(&Top::STATE);
 
-        fn handler(_context: &mut ActorCtx, _event : &UserEvent) -> StateAction<Self> {
-            StateAction::<Self>::Transition(state!(runtime State2))
-        }
+    fn entry(_context : &mut ActorCtx) {
+        println!("State1 Entry");
+    }
 
-        fn exit(_context : &mut ActorCtx) {
-            println!("State1 Exit");
-        }
+    fn handler(_context: &mut ActorCtx, _event : &UserEvent) -> Action<ActorSM> {
+        Action::<ActorSM>::Transition(&State2::STATE)
+    }
+
+    fn exit(_context : &mut ActorCtx) {
+        println!("State1 Exit");
     }
 }
 
-state! {
-    impl State2 {
-        type Context = ActorCtx;
-        type Event = UserEvent;
+struct State2;
 
-        const PARENT : Option<State::<Self>> = Some(state!(runtime Top));
+impl HsmState<ActorSM> for State2 {
+    const PARENT : Option<State::<ActorSM>> = Some(&Top::STATE);
 
-        fn entry(_context : &mut ActorCtx) {
-            println!("State2 Entry");
-        }
+    fn entry(_context : &mut ActorCtx) {
+        println!("State2 Entry");
+    }
 
-        fn handler(_context: &mut ActorCtx, _event : &UserEvent) -> StateAction<Self> {
-            StateAction::<Self>::Transition(state!(runtime State1))
-        }
+    fn handler(_context: &mut ActorCtx, _event : &UserEvent) -> Action<ActorSM> {
+        Action::<ActorSM>::Transition(&State1::STATE)
+    }
 
-        fn exit(_context : &mut ActorCtx) {
-            println!("State2 Exit");
-        }
+    fn exit(_context : &mut ActorCtx) {
+        println!("State2 Exit");
     }
 }
 
@@ -81,7 +80,7 @@ fn main() {
     };
 
     {
-        actor.sm.run(&mut actor.context);
+        actor.sm.run(&mut actor.context, &Top::STATE);
     }
 
     for _ in 0..3 {
