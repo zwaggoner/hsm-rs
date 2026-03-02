@@ -13,16 +13,16 @@ pub(crate) struct MpmcBoundedQueue<T, const SIZE: usize> {
     dequeue_pos: AtomicUsize,
 }
 
-impl<T, const SIZE: usize> MpmcBoundedQueue::<T, SIZE> {
+impl<T, const SIZE: usize> MpmcBoundedQueue<T, SIZE> {
     const BUFFER_MASK: usize = SIZE - 1;
 
     pub(crate) fn new() -> Self {
         assert!(SIZE >= 2, "Queue size must be at least two elements");
         assert!(SIZE.is_power_of_two(), "Queue size must be a power of two");
         MpmcBoundedQueue::<T, SIZE> {
-            buffer: core::array::from_fn(|i| Slot::<T> { 
-                sequence: AtomicUsize::new(i), 
-                data: UnsafeCell::new(MaybeUninit::uninit()) 
+            buffer: core::array::from_fn(|i| Slot::<T> {
+                sequence: AtomicUsize::new(i),
+                data: UnsafeCell::new(MaybeUninit::uninit()),
             }),
             enqueue_pos: AtomicUsize::new(0),
             dequeue_pos: AtomicUsize::new(0),
@@ -31,18 +31,19 @@ impl<T, const SIZE: usize> MpmcBoundedQueue::<T, SIZE> {
 
     pub(crate) fn enqueue(&self, data: T) -> Result<(), ()> {
         let mut pos = self.enqueue_pos.load(Ordering::Relaxed);
-    
+
         loop {
             let slot = &self.buffer[pos & Self::BUFFER_MASK];
             let seq = slot.sequence.load(Ordering::Acquire);
-            let dif : isize = seq as isize - pos as isize;
+            let dif: isize = seq as isize - pos as isize;
 
             if dif == 0 {
                 match self.enqueue_pos.compare_exchange_weak(
                     pos,
                     pos + 1,
                     Ordering::Relaxed,
-                    Ordering::Relaxed) {
+                    Ordering::Relaxed,
+                ) {
                     Ok(_) => {
                         unsafe {
                             (*slot.data.get()).write(data);
@@ -50,7 +51,7 @@ impl<T, const SIZE: usize> MpmcBoundedQueue::<T, SIZE> {
 
                         slot.sequence.store(pos + 1, Ordering::Release);
                         return Ok(());
-                    },
+                    }
                     Err(new_pos) => pos = new_pos,
                 }
             } else if dif < 0 {
@@ -68,22 +69,21 @@ impl<T, const SIZE: usize> MpmcBoundedQueue::<T, SIZE> {
             let slot = &self.buffer[pos & Self::BUFFER_MASK];
             let seq = slot.sequence.load(Ordering::Acquire);
 
-            let dif : isize = seq as isize - (pos + 1) as isize;
+            let dif: isize = seq as isize - (pos + 1) as isize;
 
             if dif == 0 {
                 match self.dequeue_pos.compare_exchange_weak(
                     pos,
                     pos + 1,
                     Ordering::Relaxed,
-                    Ordering::Relaxed) {
+                    Ordering::Relaxed,
+                ) {
                     Ok(_) => {
-                        let data = unsafe {
-                            (*slot.data.get()).assume_init_read()
-                        };
+                        let data = unsafe { (*slot.data.get()).assume_init_read() };
 
                         slot.sequence.store(pos + SIZE, Ordering::Release);
                         return Some(data);
-                    },
+                    }
                     Err(new_pos) => pos = new_pos,
                 }
             } else if dif < 0 {
