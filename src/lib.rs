@@ -1,6 +1,7 @@
 #![no_std]
 
 mod fixed_vec;
+mod mpmc_bounded_queue;
 
 use fixed_vec::FixedVec;
 
