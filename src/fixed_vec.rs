@@ -91,13 +91,97 @@ mod tests {
         assert_eq!(v.len(), expected_size);
         assert_eq!(&*v, &test);
 
-        for i in 0..TEST_LEN {
-            assert_eq!(v.pop(), Some(test[TEST_LEN - i - 1]));
+        for val in test.iter().rev() {
+            assert_eq!(v.pop(), Some(*val));
 
             expected_size -= 1;
             assert_eq!(v.len(), expected_size);
         }
 
         assert_eq!(v.pop(), None);
+    }
+
+    #[test]
+    fn overflow() {
+        let mut v: FixedVec<i32, 1> = FixedVec::new();
+
+        assert!(v.push(1).is_ok());
+        assert!(v.push(2).is_err());
+
+        assert_eq!(v.len(), 1);
+    }
+
+    #[test] 
+    fn clear() {
+        let mut v: FixedVec<i32, 4> = FixedVec::new();
+
+        v.push(1).unwrap();
+        v.push(2).unwrap();
+
+        v.clear();
+
+        assert_eq!(v.len(), 0);
+        assert_eq!(v.pop(), None);
+    }
+
+    use core::cell::Cell;
+
+    struct DropCounter<'a> {
+        counter: &'a Cell<usize>,
+    }
+
+    impl<'a> Drop for DropCounter<'a> {
+        fn drop(&mut self) {
+            let v = self.counter.get();
+            self.counter.set(v + 1);
+        }
+    }
+
+    #[test]
+    fn drop() {
+        let counter = Cell::new(0);
+
+        {
+            let mut v: FixedVec<DropCounter, 4> = FixedVec::new();
+
+            v.push(DropCounter { counter: &counter }).unwrap();
+            v.push(DropCounter { counter: &counter }).unwrap();
+
+            assert_eq!(counter.get(), 0);
+        }
+
+        // Nothing extra dropped
+        assert_eq!(counter.get(), 2);
+    }
+
+    #[test]
+    fn drop_on_clear() {
+        let counter = Cell::new(0);
+
+        {
+            let mut v: FixedVec<DropCounter, 4> = FixedVec::new();
+
+            v.push(DropCounter { counter: &counter }).unwrap();
+            v.push(DropCounter { counter: &counter }).unwrap();
+
+            v.clear();
+
+            assert_eq!(counter.get(), 2);
+        }
+
+        // Nothing extra dropped
+        assert_eq!(counter.get(), 2);
+    }
+
+    #[test]
+    fn deref_mut() {
+        let mut v: FixedVec<i32, 4> = FixedVec::new();
+
+        v.push(1).unwrap();
+        v.push(2).unwrap();
+
+        v[0] = 10;
+
+        assert_eq!(&*v, &[10, 2]);
     }
 }
