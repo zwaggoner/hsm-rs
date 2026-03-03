@@ -79,8 +79,8 @@ mod tests {
         assert_eq!(v.len(), 0);
         assert_eq!(v.pop(), None);
 
-        const TEST_LEN : usize = 3;
-        let test : [i32; TEST_LEN] = [1, 2, 3];
+        const TEST_LEN: usize = 3;
+        let test: [i32; TEST_LEN] = [1, 2, 3];
 
         for val in test {
             v.push(val).unwrap();
