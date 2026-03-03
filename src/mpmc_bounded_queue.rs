@@ -1,6 +1,11 @@
 use core::cell::UnsafeCell;
 use core::mem::MaybeUninit;
+
+#[cfg(not(test))]
 use core::sync::atomic::{AtomicUsize, Ordering};
+
+#[cfg(test)]
+use loom::sync::atomic::{AtomicUsize, Ordering};
 
 struct Slot<T> {
     sequence: AtomicUsize,
