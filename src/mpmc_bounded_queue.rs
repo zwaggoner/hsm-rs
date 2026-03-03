@@ -106,3 +106,138 @@ unsafe impl<T: Copy + Send, const N: usize> Send for MpmcBoundedQueue<T, N> {}
 // The queue itself can be shared immutably via atomic operations for pushing
 // Only the consumer needs exclusive access for popping
 unsafe impl<T: Copy + Sync, const N: usize> Sync for MpmcBoundedQueue<T, N> {}
+
+#[cfg(test)]
+mod tests {
+    use super::MpmcBoundedQueue;
+    use loom::sync::atomic::{AtomicUsize, Ordering};
+    use loom::sync::Arc;
+    use loom::thread;
+
+    #[test]
+    fn enqueue_dequeue_roundtrip() {
+        loom::model(|| {
+            let queue = MpmcBoundedQueue::<u32, 4>::new();
+
+            assert_eq!(queue.dequeue(), None);
+            assert_eq!(queue.enqueue(7), Ok(()));
+            assert_eq!(queue.dequeue(), Some(7));
+            assert_eq!(queue.dequeue(), None);
+        });
+    }
+
+    #[test]
+    fn queue_full_and_empty_conditions() {
+        loom::model(|| {
+            let queue = MpmcBoundedQueue::<u32, 2>::new();
+
+            assert_eq!(queue.enqueue(1), Ok(()));
+            assert_eq!(queue.enqueue(2), Ok(()));
+            assert_eq!(queue.enqueue(3), Err(()));
+
+            assert_eq!(queue.dequeue(), Some(1));
+            assert_eq!(queue.dequeue(), Some(2));
+            assert_eq!(queue.dequeue(), None);
+        });
+    }
+
+    #[test]
+    fn wraparound_behavior() {
+        loom::model(|| {
+            let queue = MpmcBoundedQueue::<u32, 4>::new();
+
+            for i in 0..4 {
+                assert_eq!(queue.enqueue(i), Ok(()));
+            }
+
+            assert_eq!(queue.dequeue(), Some(0));
+            assert_eq!(queue.dequeue(), Some(1));
+
+            assert_eq!(queue.enqueue(4), Ok(()));
+            assert_eq!(queue.enqueue(5), Ok(()));
+            assert_eq!(queue.enqueue(6), Err(()));
+
+            assert_eq!(queue.dequeue(), Some(2));
+            assert_eq!(queue.dequeue(), Some(3));
+            assert_eq!(queue.dequeue(), Some(4));
+            assert_eq!(queue.dequeue(), Some(5));
+            assert_eq!(queue.dequeue(), None);
+        });
+    }
+
+    #[test]
+    fn loom_spsc_single_item() {
+        loom::model(|| {
+            let queue = Arc::new(MpmcBoundedQueue::<usize, 2>::new());
+
+            let producer_queue = Arc::clone(&queue);
+            let producer = thread::spawn(move || {
+                while producer_queue.enqueue(42).is_err() {
+                    thread::yield_now();
+                }
+            });
+
+            let consumer = thread::spawn(move || loop {
+                if let Some(value) = queue.dequeue() {
+                    assert_eq!(value, 42);
+                    break;
+                }
+                thread::yield_now();
+            });
+
+            producer.join().expect("producer thread panicked");
+            consumer.join().expect("consumer thread panicked");
+        });
+    }
+
+    #[test]
+    fn loom_mpmc_all_items_consumed_once() {
+        let mut model = loom::model::Builder::new();
+        model.max_branches = 1_000;
+        model.preemption_bound = Some(2);
+
+        model.check(|| {
+            let queue = Arc::new(MpmcBoundedQueue::<usize, 2>::new());
+            let consumed_count = Arc::new(AtomicUsize::new(0));
+            let seen_mask = Arc::new(AtomicUsize::new(0));
+
+            let producer1_queue = Arc::clone(&queue);
+            let producer1 = thread::spawn(move || {
+                while producer1_queue.enqueue(0).is_err() {
+                    thread::yield_now();
+                }
+            });
+
+            let producer2_queue = Arc::clone(&queue);
+            let producer2 = thread::spawn(move || {
+                while producer2_queue.enqueue(1).is_err() {
+                    thread::yield_now();
+                }
+            });
+
+            let consumer_queue = Arc::clone(&queue);
+            let consumer_count = Arc::clone(&consumed_count);
+            let consumer_mask = Arc::clone(&seen_mask);
+            let consumer = thread::spawn(move || {
+                while consumer_count.load(Ordering::Acquire) < 2 {
+                    if let Some(value) = consumer_queue.dequeue() {
+                        let bit = 1 << value;
+                        let previous = consumer_mask.fetch_or(bit, Ordering::AcqRel);
+                        assert_eq!(previous & bit, 0, "value dequeued more than once");
+                        consumer_count.fetch_add(1, Ordering::AcqRel);
+                    } else {
+                        thread::yield_now();
+                    }
+                }
+            });
+
+            producer1.join().expect("producer1 thread panicked");
+            producer2.join().expect("producer2 thread panicked");
+            consumer.join().expect("consumer thread panicked");
+
+            assert_eq!(consumed_count.load(Ordering::Acquire), 2);
+            assert_eq!(seen_mask.load(Ordering::Acquire), 0b11);
+            assert_eq!(queue.dequeue(), None);
+        });
+    }
+}
