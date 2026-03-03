@@ -1,8 +1,8 @@
+use core::iter;
 use core::mem::MaybeUninit;
 use core::ops::{Deref, DerefMut};
 use core::ptr;
 use core::slice;
-use core::iter;
 
 pub(crate) struct FixedVec<T, const MAX_DEPTH: usize = 32> {
     arr: [MaybeUninit<T>; MAX_DEPTH],
@@ -112,7 +112,7 @@ mod tests {
         assert_eq!(v.len(), 1);
     }
 
-    #[test] 
+    #[test]
     fn clear() {
         let mut v: FixedVec<i32, 4> = FixedVec::new();
 
