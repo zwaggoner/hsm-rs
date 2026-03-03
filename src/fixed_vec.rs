@@ -1,4 +1,3 @@
-use core::iter;
 use core::mem::MaybeUninit;
 use core::ops::{Deref, DerefMut};
 use core::ptr;
@@ -199,7 +198,7 @@ mod tests {
 
         v.reverse();
 
-        for (val, val_rev) in iter::zip(v.iter(), test.iter().rev()) {
+        for (val, val_rev) in core::iter::zip(v.iter(), test.iter().rev()) {
             assert_eq!(*val, *val_rev);
         }
     }
