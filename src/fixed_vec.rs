@@ -38,13 +38,16 @@ impl<T, const MAX_DEPTH: usize> FixedVec<T, MAX_DEPTH> {
 
     pub(crate) fn clear(&mut self) {
         unsafe {
-            ptr::drop_in_place(MaybeUninit::slice_assume_init_mut(
-                &mut self.arr[..self.len],
-            ));
+            ptr::drop_in_place(
+                slice::from_raw_parts_mut(
+                    self.arr.as_mut_ptr() as *mut T,
+                    self.len,
+                )
+            );
         }
 
         self.len = 0;
-    }
+    } 
 }
 
 impl<T, const MAX_DEPTH: usize> Drop for FixedVec<T, MAX_DEPTH> {
