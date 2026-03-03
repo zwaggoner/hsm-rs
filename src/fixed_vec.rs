@@ -67,3 +67,37 @@ impl<T, const MAX_DEPTH: usize> DerefMut for FixedVec<T, MAX_DEPTH> {
         unsafe { slice::from_raw_parts_mut(self.arr.as_mut_ptr() as *mut T, self.len) }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn push_pop() {
+        let mut v: FixedVec<i32, 3> = FixedVec::new();
+
+        assert_eq!(v.len(), 0);
+        assert_eq!(v.pop(), None);
+
+        const TEST_LEN : usize = 3;
+        let test : [i32; TEST_LEN] = [1, 2, 3];
+
+        for val in test {
+            v.push(val).unwrap();
+        }
+
+        let mut expected_size = TEST_LEN;
+
+        assert_eq!(v.len(), expected_size);
+        assert_eq!(&*v, &test);
+
+        for i in 0..TEST_LEN {
+            assert_eq!(v.pop(), Some(test[TEST_LEN - i - 1]));
+
+            expected_size -= 1;
+            assert_eq!(v.len(), expected_size);
+        }
+
+        assert_eq!(v.pop(), None);
+    }
+}
