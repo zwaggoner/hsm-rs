@@ -14,7 +14,7 @@ impl<T: Copy, const MAX_DEPTH: usize> FixedVec<T, MAX_DEPTH> {
         }
     }
 
-    pub(crate) fn push(&mut self, elem: T) -> Result<(),()> {
+    pub(crate) fn push(&mut self, elem: T) -> Result<(), ()> {
         if self.len < MAX_DEPTH {
             self.arr[self.len].write(elem);
             self.len += 1;

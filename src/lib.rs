@@ -88,7 +88,8 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH> {
         let mut path: FixedVec<State<H>, MAX_NEST_DEPTH> = FixedVec::new();
         let mut excess_depth = 0;
 
-        path.push(state).expect("Unexpectedly exceeded capacity on first push to path");
+        path.push(state)
+            .expect("Unexpectedly exceeded capacity on first push to path");
 
         while let Some(parent) = curr_state.parent {
             match path.push(parent) {
@@ -168,7 +169,9 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH> {
 
     fn enter(&mut self, context: &mut H::Context, target_path: &[State<H>]) {
         for state in target_path {
-            self.path.push(state).expect("Unexpectedly exceeded path capacity on entry");
+            self.path
+                .push(state)
+                .expect("Unexpectedly exceeded path capacity on entry");
             (state.entry)(context);
         }
     }
