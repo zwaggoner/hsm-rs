@@ -2,6 +2,7 @@ use core::mem::MaybeUninit;
 use core::ops::{Deref, DerefMut};
 use core::ptr;
 use core::slice;
+use core::iter;
 
 pub(crate) struct FixedVec<T, const MAX_DEPTH: usize = 32> {
     arr: [MaybeUninit<T>; MAX_DEPTH],
@@ -183,5 +184,23 @@ mod tests {
         v[0] = 10;
 
         assert_eq!(&*v, &[10, 2]);
+    }
+
+    #[test]
+    fn reverse() {
+        let mut v: FixedVec<i32, 3> = FixedVec::new();
+
+        const TEST_LEN: usize = 3;
+        let test: [i32; TEST_LEN] = [1, 2, 3];
+
+        for val in test {
+            v.push(val).unwrap();
+        }
+
+        v.reverse();
+
+        for (val, val_rev) in iter::zip(v.iter(), test.iter().rev()) {
+            assert_eq!(*val, *val_rev);
+        }
     }
 }
