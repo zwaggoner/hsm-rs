@@ -86,19 +86,20 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH> {
     fn get_path(state: State<H>) -> FixedVec<State<H>, MAX_NEST_DEPTH> {
         let mut curr_state = state;
         let mut path: FixedVec<State<H>, MAX_NEST_DEPTH> = FixedVec::new();
-        let mut depth = 0;
+        let mut excess_depth = 0;
 
-        path.push(state);
-        depth += 1;
+        path.push(state).expect("Unexpectedly exceeded capacity on first push to path");
 
         while let Some(parent) = curr_state.parent {
-            if depth < MAX_NEST_DEPTH {
-                path.push(parent);
+            match path.push(parent) {
+                Ok(_) => (),
+                Err(_) => excess_depth += 1,
             }
 
-            depth += 1;
             curr_state = parent;
         }
+
+        let depth = path.len() + excess_depth;
 
         assert!(
             depth <= MAX_NEST_DEPTH,
@@ -167,7 +168,7 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH> {
 
     fn enter(&mut self, context: &mut H::Context, target_path: &[State<H>]) {
         for state in target_path {
-            self.path.push(state);
+            self.path.push(state).expect("Unexpectedly exceeded path capacity on entry");
             (state.entry)(context);
         }
     }
