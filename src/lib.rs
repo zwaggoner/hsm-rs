@@ -225,6 +225,6 @@ impl<H: Hsm, const QUEUE_SIZE: usize, const MAX_NEST_DEPTH: usize>
     }
 
     pub fn step_all(&mut self, context: &mut H::Context) {
-        while self.step(context) {};
+        while self.step(context) {}
     }
 }
