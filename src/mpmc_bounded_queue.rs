@@ -110,8 +110,8 @@ unsafe impl<T: Copy + Sync, const N: usize> Sync for MpmcBoundedQueue<T, N> {}
 #[cfg(test)]
 mod tests {
     use super::MpmcBoundedQueue;
-    use loom::sync::atomic::{AtomicUsize, Ordering};
     use loom::sync::Arc;
+    use loom::sync::atomic::{AtomicUsize, Ordering};
     use loom::thread;
 
     #[test]
@@ -177,12 +177,14 @@ mod tests {
                 }
             });
 
-            let consumer = thread::spawn(move || loop {
-                if let Some(value) = queue.dequeue() {
-                    assert_eq!(value, 42);
-                    break;
+            let consumer = thread::spawn(move || {
+                loop {
+                    if let Some(value) = queue.dequeue() {
+                        assert_eq!(value, 42);
+                        break;
+                    }
+                    thread::yield_now();
                 }
-                thread::yield_now();
             });
 
             producer.join().expect("producer thread panicked");
@@ -191,12 +193,8 @@ mod tests {
     }
 
     #[test]
-    fn loom_mpmc_all_items_consumed_once() {
-        let mut model = loom::model::Builder::new();
-        model.max_branches = 1_000;
-        model.preemption_bound = Some(2);
-
-        model.check(|| {
+    fn loom_mpsc_all_items_consumed_once() {
+        loom::model(|| {
             let queue = Arc::new(MpmcBoundedQueue::<usize, 2>::new());
             let consumed_count = Arc::new(AtomicUsize::new(0));
             let seen_mask = Arc::new(AtomicUsize::new(0));
