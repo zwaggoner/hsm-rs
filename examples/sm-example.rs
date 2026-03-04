@@ -74,7 +74,7 @@ impl HsmState<ActorSM> for State2 {
 
 fn main() {
     let mut actor = Actor {
-        sm: StateMachine::new(),
+        sm: StateMachine::new(&Top::STATE),
         context: ActorCtx {},
     };
 
@@ -84,5 +84,5 @@ fn main() {
     producer.enqueue(UserEvent::TestEvent).unwrap();
     producer.enqueue(UserEvent::TestEvent).unwrap();
 
-    while actor.sm.step(&mut actor.context, &Top::STATE) {}
+    actor.sm.step_all(&mut actor.context);
 }

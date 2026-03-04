@@ -76,26 +76,18 @@ pub struct StateMachine<
 > {
     path: FixedVec<State<H>, MAX_NEST_DEPTH>,
     event_queue: EventQueue<H::Event, QUEUE_SIZE>,
-    initialized: bool,
+    initial: Option<State<H>>,
     next_event: Option<H::Event>,
-}
-
-impl<H: Hsm, const QUEUE_SIZE: usize, const MAX_NEST_DEPTH: usize> Default
-    for StateMachine<H, QUEUE_SIZE, MAX_NEST_DEPTH>
-{
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl<H: Hsm, const QUEUE_SIZE: usize, const MAX_NEST_DEPTH: usize>
     StateMachine<H, QUEUE_SIZE, MAX_NEST_DEPTH>
 {
-    pub fn new() -> Self {
+    pub fn new(initial: State<H>) -> Self {
         Self {
             path: FixedVec::<State<H>, MAX_NEST_DEPTH>::new(),
             event_queue: EventQueue::<H::Event, QUEUE_SIZE>::new(),
-            initialized: false,
+            initial: Some(initial),
             next_event: None,
         }
     }
@@ -218,20 +210,21 @@ impl<H: Hsm, const QUEUE_SIZE: usize, const MAX_NEST_DEPTH: usize>
         self.event_queue.producer()
     }
 
-    pub fn step(&mut self, context: &mut H::Context, initial: State<H>) -> bool {
-        if self.initialized {
-            if let Some(event) = self.next_event.take() {
-                self.dispatch(context, &event);
-            } else if let Some(event) = self.event_queue.dequeue() {
-                self.dispatch(context, &event);
-            }
-        } else {
+    pub fn step(&mut self, context: &mut H::Context) -> bool {
+        if let Some(initial) = self.initial.take() {
             self.transition(context, initial);
-            self.initialized = true;
+        } else if let Some(event) = self.next_event.take() {
+            self.dispatch(context, &event);
+        } else if let Some(event) = self.event_queue.dequeue() {
+            self.dispatch(context, &event);
         }
 
         self.next_event = self.event_queue.dequeue();
 
         self.next_event.is_some()
+    }
+
+    pub fn step_all(&mut self, context: &mut H::Context) {
+        while self.step(context) {};
     }
 }
