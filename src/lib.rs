@@ -222,12 +222,10 @@ impl<H: Hsm, const QUEUE_SIZE: usize, const MAX_NEST_DEPTH: usize>
         if self.initialized {
             if let Some(event) = self.next_event.take() {
                 self.dispatch(context, &event);
-            }
-            else if let Some(event) = self.event_queue.dequeue() {
+            } else if let Some(event) = self.event_queue.dequeue() {
                 self.dispatch(context, &event);
             }
-        }
-        else {
+        } else {
             self.transition(context, initial);
             self.initialized = true;
         }
