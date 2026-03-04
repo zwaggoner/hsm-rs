@@ -1,7 +1,7 @@
 use crate::mpmc_bounded_queue::MpmcBoundedQueue;
 
 pub struct EventProducer<'a, E, const SIZE: usize> {
-    inner: &'a MpmcBoundedQueue::<E, SIZE>,
+    inner: &'a MpmcBoundedQueue<E, SIZE>,
 }
 
 impl<'a, E, const SIZE: usize> EventProducer<'a, E, SIZE> {
@@ -12,9 +12,7 @@ impl<'a, E, const SIZE: usize> EventProducer<'a, E, SIZE> {
 
 impl<'a, E, const SIZE: usize> Clone for EventProducer<'a, E, SIZE> {
     fn clone(&self) -> Self {
-        Self {
-            inner: self.inner,
-        }
+        Self { inner: self.inner }
     }
 }
 
@@ -34,9 +32,6 @@ impl<E, const SIZE: usize> EventQueue<E, SIZE> {
     }
 
     pub(crate) fn producer<'a>(&'a self) -> EventProducer<'a, E, SIZE> {
-        EventProducer::<E, SIZE> {
-            inner: &self.inner
-        }
+        EventProducer::<E, SIZE> { inner: &self.inner }
     }
 }
-

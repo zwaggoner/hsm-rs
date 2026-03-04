@@ -1,12 +1,12 @@
 #![no_std]
 
+mod event_queue;
 mod fixed_vec;
 mod mpmc_bounded_queue;
-mod event_queue;
 
-use fixed_vec::FixedVec;
-use event_queue::EventQueue;
 pub use event_queue::EventProducer;
+use event_queue::EventQueue;
+use fixed_vec::FixedVec;
 
 pub trait Hsm {
     type Context: 'static;
@@ -69,18 +69,26 @@ impl<H: Hsm + 'static, S: HsmState<H> + 'static> RuntimeState<H> for S {
     };
 }
 
-pub struct StateMachine<H: Hsm + 'static, const QUEUE_SIZE: usize = 32, const MAX_NEST_DEPTH: usize = 32> {
+pub struct StateMachine<
+    H: Hsm + 'static,
+    const QUEUE_SIZE: usize = 32,
+    const MAX_NEST_DEPTH: usize = 32,
+> {
     path: FixedVec<State<H>, MAX_NEST_DEPTH>,
     event_queue: EventQueue<H::Event, QUEUE_SIZE>,
 }
 
-impl<H: Hsm, const QUEUE_SIZE: usize, const MAX_NEST_DEPTH: usize> Default for StateMachine<H, QUEUE_SIZE, MAX_NEST_DEPTH> {
+impl<H: Hsm, const QUEUE_SIZE: usize, const MAX_NEST_DEPTH: usize> Default
+    for StateMachine<H, QUEUE_SIZE, MAX_NEST_DEPTH>
+{
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<H: Hsm, const QUEUE_SIZE: usize, const MAX_NEST_DEPTH: usize> StateMachine<H, QUEUE_SIZE, MAX_NEST_DEPTH> {
+impl<H: Hsm, const QUEUE_SIZE: usize, const MAX_NEST_DEPTH: usize>
+    StateMachine<H, QUEUE_SIZE, MAX_NEST_DEPTH>
+{
     pub fn new() -> Self {
         Self {
             path: FixedVec::<State<H>, MAX_NEST_DEPTH>::new(),

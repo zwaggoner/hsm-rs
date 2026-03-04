@@ -110,8 +110,8 @@ unsafe impl<T: Copy + Sync, const N: usize> Sync for MpmcBoundedQueue<T, N> {}
 #[cfg(test)]
 mod tests {
     use super::MpmcBoundedQueue;
-    use loom::sync::atomic::{AtomicUsize, Ordering};
     use loom::sync::Arc;
+    use loom::sync::atomic::{AtomicUsize, Ordering};
     use loom::thread;
 
     #[test]
@@ -177,12 +177,14 @@ mod tests {
                 }
             });
 
-            let consumer = thread::spawn(move || loop {
-                if let Some(value) = queue.dequeue() {
-                    assert_eq!(value, 42);
-                    break;
+            let consumer = thread::spawn(move || {
+                loop {
+                    if let Some(value) = queue.dequeue() {
+                        assert_eq!(value, 42);
+                        break;
+                    }
+                    thread::yield_now();
                 }
-                thread::yield_now();
             });
 
             producer.join().expect("producer thread panicked");

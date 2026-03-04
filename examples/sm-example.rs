@@ -78,7 +78,6 @@ fn main() {
         context: ActorCtx {},
     };
 
-
     let producer = actor.sm.event_producer();
 
     producer.enqueue(UserEvent::TestEvent).unwrap();
