@@ -76,6 +76,8 @@ pub struct StateMachine<
 > {
     path: FixedVec<State<H>, MAX_NEST_DEPTH>,
     event_queue: EventQueue<H::Event, QUEUE_SIZE>,
+    initialized: bool,
+    next_event: Option<H::Event>,
 }
 
 impl<H: Hsm, const QUEUE_SIZE: usize, const MAX_NEST_DEPTH: usize> Default
@@ -93,6 +95,8 @@ impl<H: Hsm, const QUEUE_SIZE: usize, const MAX_NEST_DEPTH: usize>
         Self {
             path: FixedVec::<State<H>, MAX_NEST_DEPTH>::new(),
             event_queue: EventQueue::<H::Event, QUEUE_SIZE>::new(),
+            initialized: false,
+            next_event: None,
         }
     }
 
@@ -214,11 +218,22 @@ impl<H: Hsm, const QUEUE_SIZE: usize, const MAX_NEST_DEPTH: usize>
         self.event_queue.producer()
     }
 
-    pub fn run(&mut self, context: &mut H::Context, initial: State<H>) {
-        self.transition(context, initial);
-
-        while let Some(event) = self.event_queue.dequeue() {
-            self.dispatch(context, &event);
+    pub fn step(&mut self, context: &mut H::Context, initial: State<H>) -> bool {
+        if self.initialized {
+            if let Some(event) = self.next_event.take() {
+                self.dispatch(context, &event);
+            }
+            else if let Some(event) = self.event_queue.dequeue() {
+                self.dispatch(context, &event);
+            }
         }
+        else {
+            self.transition(context, initial);
+            self.initialized = true;
+        }
+
+        self.next_event = self.event_queue.dequeue();
+
+        self.next_event.is_some()
     }
 }

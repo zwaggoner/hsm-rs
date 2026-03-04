@@ -84,5 +84,5 @@ fn main() {
     producer.enqueue(UserEvent::TestEvent).unwrap();
     producer.enqueue(UserEvent::TestEvent).unwrap();
 
-    actor.sm.run(&mut actor.context, &Top::STATE);
+    while actor.sm.step(&mut actor.context, &Top::STATE) {};
 }
