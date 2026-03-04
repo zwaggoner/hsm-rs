@@ -34,7 +34,7 @@ impl<T, const SIZE: usize> MpmcBoundedQueue<T, SIZE> {
         }
     }
 
-    pub(crate) fn enqueue(&self, data: T) -> Result<(), ()> {
+    pub(crate) fn enqueue(&self, data: T) -> Result<(), T> {
         let mut pos = self.enqueue_pos.load(Ordering::Relaxed);
 
         loop {
@@ -60,7 +60,7 @@ impl<T, const SIZE: usize> MpmcBoundedQueue<T, SIZE> {
                     Err(new_pos) => pos = new_pos,
                 }
             } else if dif < 0 {
-                return Err(());
+                return Err(data);
             } else {
                 pos = self.enqueue_pos.load(Ordering::Relaxed);
             }

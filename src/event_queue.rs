@@ -5,7 +5,7 @@ pub struct EventProducer<'a, E, const SIZE: usize> {
 }
 
 impl<'a, E, const SIZE: usize> EventProducer<'a, E, SIZE> {
-    pub fn enqueue(&self, event: E) -> Result<(), ()> {
+    pub fn enqueue(&self, event: E) -> Result<(), E> {
         self.inner.enqueue(event)
     }
 }
