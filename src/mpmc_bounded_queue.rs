@@ -191,12 +191,8 @@ mod tests {
     }
 
     #[test]
-    fn loom_mpmc_all_items_consumed_once() {
-        let mut model = loom::model::Builder::new();
-        model.max_branches = 1_000;
-        model.preemption_bound = Some(2);
-
-        model.check(|| {
+    fn loom_mpsc_all_items_consumed_once() {
+        loom::model(|| {
             let queue = Arc::new(MpmcBoundedQueue::<usize, 2>::new());
             let consumed_count = Arc::new(AtomicUsize::new(0));
             let seen_mask = Arc::new(AtomicUsize::new(0));

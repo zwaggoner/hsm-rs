@@ -2,8 +2,11 @@
 
 mod fixed_vec;
 mod mpmc_bounded_queue;
+mod event_queue;
 
 use fixed_vec::FixedVec;
+use event_queue::EventQueue;
+pub use event_queue::EventProducer;
 
 pub trait Hsm {
     type Context: 'static;
@@ -66,20 +69,22 @@ impl<H: Hsm + 'static, S: HsmState<H> + 'static> RuntimeState<H> for S {
     };
 }
 
-pub struct StateMachine<H: Hsm + 'static, const MAX_NEST_DEPTH: usize = 32> {
+pub struct StateMachine<H: Hsm + 'static, const QUEUE_SIZE: usize = 32, const MAX_NEST_DEPTH: usize = 32> {
     path: FixedVec<State<H>, MAX_NEST_DEPTH>,
+    event_queue: EventQueue<H::Event, QUEUE_SIZE>,
 }
 
-impl<H: Hsm, const MAX_NEST_DEPTH: usize> Default for StateMachine<H, MAX_NEST_DEPTH> {
+impl<H: Hsm, const QUEUE_SIZE: usize, const MAX_NEST_DEPTH: usize> Default for StateMachine<H, QUEUE_SIZE, MAX_NEST_DEPTH> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH> {
+impl<H: Hsm, const QUEUE_SIZE: usize, const MAX_NEST_DEPTH: usize> StateMachine<H, QUEUE_SIZE, MAX_NEST_DEPTH> {
     pub fn new() -> Self {
         Self {
             path: FixedVec::<State<H>, MAX_NEST_DEPTH>::new(),
+            event_queue: EventQueue::<H::Event, QUEUE_SIZE>::new(),
         }
     }
 
@@ -184,7 +189,7 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH> {
         }
     }
 
-    pub fn dispatch(&mut self, context: &mut H::Context, event: &H::Event) {
+    fn dispatch(&mut self, context: &mut H::Context, event: &H::Event) {
         for state in self.path.iter().rev() {
             match (state.handler)(context, event) {
                 Action::<H>::Handled => break,
@@ -197,7 +202,15 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH> {
         }
     }
 
+    pub fn event_producer<'a>(&'a self) -> EventProducer<'a, H::Event, QUEUE_SIZE> {
+        self.event_queue.producer()
+    }
+
     pub fn run(&mut self, context: &mut H::Context, initial: State<H>) {
         self.transition(context, initial);
+
+        while let Some(event) = self.event_queue.dequeue() {
+            self.dispatch(context, &event);
+        }
     }
 }

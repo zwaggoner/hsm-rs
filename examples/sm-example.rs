@@ -78,11 +78,12 @@ fn main() {
         context: ActorCtx {},
     };
 
-    {
-        actor.sm.run(&mut actor.context, &Top::STATE);
-    }
 
-    for _ in 0..3 {
-        actor.sm.dispatch(&mut actor.context, &UserEvent::TestEvent);
-    }
+    let producer = actor.sm.event_producer();
+
+    producer.enqueue(UserEvent::TestEvent).unwrap();
+    producer.enqueue(UserEvent::TestEvent).unwrap();
+    producer.enqueue(UserEvent::TestEvent).unwrap();
+
+    actor.sm.run(&mut actor.context, &Top::STATE);
 }
