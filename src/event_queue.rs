@@ -22,7 +22,7 @@ impl<'a, E, Q: QueueAdapter<E> + MultiProducer> Clone for EventProducer<'a, E, Q
     fn clone(&self) -> Self {
         Self {
             inner: self.inner,
-            _pd: PhantomData::<E>::default(),
+            _pd: PhantomData::<E>,
         }
     }
 }
@@ -36,7 +36,7 @@ impl<E, Q: QueueAdapter<E>> EventQueue<E, Q> {
     pub(crate) fn new() -> Self {
         Self {
             inner: Q::default(),
-            _pd: PhantomData::<E>::default(),
+            _pd: PhantomData::<E>,
         }
     }
 
@@ -47,7 +47,7 @@ impl<E, Q: QueueAdapter<E>> EventQueue<E, Q> {
     pub(crate) fn producer<'a>(&'a self) -> EventProducer<'a, E, Q> {
         EventProducer::<E, Q> {
             inner: &self.inner,
-            _pd: PhantomData::<E>::default(),
+            _pd: PhantomData::<E>,
         }
     }
 }

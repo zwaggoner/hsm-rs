@@ -72,7 +72,7 @@ impl<H: Hsm + 'static, S: HsmState<H> + 'static> RuntimeState<H> for S {
     };
 
     fn state() -> State<H> {
-        return &Self::STATE;
+        &Self::STATE
     }
 }
 
