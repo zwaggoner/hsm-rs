@@ -1,7 +1,7 @@
 use core::cell::UnsafeCell;
 use core::mem::MaybeUninit;
 
-use crate::event_queue::QueueAdapter;
+use crate::event_queue::{MultiProducer, QueueAdapter};
 
 #[cfg(not(test))]
 use core::sync::atomic::{AtomicUsize, Ordering};
@@ -105,6 +105,8 @@ impl<T, const SIZE: usize> QueueAdapter<T> for MpmcBoundedQueue<T, SIZE> {
         }
     }
 }
+
+impl<T, const N: usize> MultiProducer for MpmcBoundedQueue<T, N> {}
 
 // Ensure the queue can be safely shared across thread boundaries
 unsafe impl<T: Copy + Send, const N: usize> Send for MpmcBoundedQueue<T, N> {}

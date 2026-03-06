@@ -219,7 +219,7 @@ impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize>
         if let Some(initial) = self.initial.take() {
             self.transition(context, initial);
             return true;
-        } 
+        }
 
         if let Some(event) = self.event_queue.dequeue() {
             self.dispatch(context, &event);
