@@ -1,6 +1,8 @@
 use core::cell::UnsafeCell;
 use core::mem::MaybeUninit;
 
+use crate::event_queue::QueueAdapter;
+
 #[cfg(not(test))]
 use core::sync::atomic::{AtomicUsize, Ordering};
 
@@ -12,16 +14,14 @@ struct Slot<T> {
     data: UnsafeCell<MaybeUninit<T>>,
 }
 
-pub(crate) struct MpmcBoundedQueue<T, const SIZE: usize> {
+pub struct MpmcBoundedQueue<T, const SIZE: usize> {
     buffer: [Slot<T>; SIZE],
     enqueue_pos: AtomicUsize,
     dequeue_pos: AtomicUsize,
 }
 
-impl<T, const SIZE: usize> MpmcBoundedQueue<T, SIZE> {
-    const BUFFER_MASK: usize = SIZE - 1;
-
-    pub(crate) fn new() -> Self {
+impl <T, const SIZE: usize> Default for MpmcBoundedQueue<T, SIZE> {
+    fn default() -> Self {
         assert!(SIZE >= 2, "Queue size must be at least two elements");
         assert!(SIZE.is_power_of_two(), "Queue size must be a power of two");
         MpmcBoundedQueue::<T, SIZE> {
@@ -33,8 +33,14 @@ impl<T, const SIZE: usize> MpmcBoundedQueue<T, SIZE> {
             dequeue_pos: AtomicUsize::new(0),
         }
     }
+}
 
-    pub(crate) fn enqueue(&self, data: T) -> Result<(), T> {
+impl<T, const SIZE: usize> MpmcBoundedQueue<T, SIZE> {
+    const BUFFER_MASK: usize = SIZE - 1;
+}
+
+impl<T, const SIZE: usize> QueueAdapter<T> for MpmcBoundedQueue<T, SIZE> {
+    fn enqueue(&self, data: T) -> Result<(), T> {
         let mut pos = self.enqueue_pos.load(Ordering::Relaxed);
 
         loop {
@@ -67,7 +73,7 @@ impl<T, const SIZE: usize> MpmcBoundedQueue<T, SIZE> {
         }
     }
 
-    pub(crate) fn dequeue(&self) -> Option<T> {
+    fn dequeue(&self) -> Option<T> {
         let mut pos = self.dequeue_pos.load(Ordering::Relaxed);
 
         loop {

@@ -1,29 +1,39 @@
-use crate::mpmc_bounded_queue::MpmcBoundedQueue;
+use core::marker::PhantomData;
 
-pub struct EventProducer<'a, E, const SIZE: usize> {
-    inner: &'a MpmcBoundedQueue<E, SIZE>,
+pub trait QueueAdapter<T> : Default {
+    fn enqueue(&self, data: T) -> Result<(), T>;
+    fn dequeue(&self) -> Option<T>;
 }
 
-impl<'a, E, const SIZE: usize> EventProducer<'a, E, SIZE> {
+pub trait MultiProducer{}
+
+pub struct EventProducer<'a, E, Q : QueueAdapter::<E>> {
+    inner: &'a Q,
+    _pd: PhantomData<E>
+}
+
+impl<'a, E, Q : QueueAdapter::<E>> EventProducer<'a, E, Q> {
     pub fn enqueue(&self, event: E) -> Result<(), E> {
         self.inner.enqueue(event)
     }
 }
 
-impl<'a, E, const SIZE: usize> Clone for EventProducer<'a, E, SIZE> {
+impl<'a, E, Q : QueueAdapter::<E> + MultiProducer> Clone for EventProducer<'a, E, Q> {
     fn clone(&self) -> Self {
-        Self { inner: self.inner }
+        Self { inner: self.inner, _pd : PhantomData::<E>::default() }
     }
 }
 
-pub(crate) struct EventQueue<E, const SIZE: usize> {
-    inner: MpmcBoundedQueue<E, SIZE>,
+pub(crate) struct EventQueue<E, Q : QueueAdapter::<E>> {
+    inner: Q,
+    _pd: PhantomData<E>
 }
 
-impl<E, const SIZE: usize> EventQueue<E, SIZE> {
+impl<E, Q : QueueAdapter::<E>> EventQueue<E, Q> {
     pub(crate) fn new() -> Self {
         Self {
-            inner: MpmcBoundedQueue::<E, SIZE>::new(),
+            inner: Q::default(),
+            _pd: PhantomData::<E>::default(),
         }
     }
 
@@ -31,7 +41,7 @@ impl<E, const SIZE: usize> EventQueue<E, SIZE> {
         self.inner.dequeue()
     }
 
-    pub(crate) fn producer<'a>(&'a self) -> EventProducer<'a, E, SIZE> {
-        EventProducer::<E, SIZE> { inner: &self.inner }
+    pub(crate) fn producer<'a>(&'a self) -> EventProducer<'a, E, Q> {
+        EventProducer::<E, Q> { inner: &self.inner, _pd: PhantomData::<E>::default() }
     }
 }

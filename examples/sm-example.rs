@@ -1,6 +1,6 @@
 extern crate rsm;
 
-use rsm::{Action, Hsm, HsmState, RuntimeState, State, StateMachine};
+use rsm::{Action, Hsm, HsmState, RuntimeState, State, StateMachine, MpmcBoundedQueue};
 
 #[derive(Debug)]
 enum UserEvent {
@@ -18,7 +18,7 @@ impl Hsm for ActorSM {
 }
 
 struct Actor {
-    sm: StateMachine<ActorSM>,
+    sm: StateMachine<ActorSM, MpmcBoundedQueue<UserEvent, 32>>,
     context: ActorCtx,
 }
 

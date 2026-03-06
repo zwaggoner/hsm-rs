@@ -4,7 +4,8 @@ mod event_queue;
 mod fixed_vec;
 mod mpmc_bounded_queue;
 
-pub use event_queue::EventProducer;
+pub use mpmc_bounded_queue::MpmcBoundedQueue;
+pub use event_queue::{QueueAdapter, EventProducer};
 use event_queue::EventQueue;
 use fixed_vec::FixedVec;
 
@@ -56,6 +57,8 @@ pub trait HsmState<H: Hsm + 'static> {
 
 pub trait RuntimeState<H: Hsm + 'static>: HsmState<H> {
     const STATE: StateDesc<H>;
+
+    fn state() -> State<H>;
 }
 
 impl<H: Hsm + 'static, S: HsmState<H> + 'static> RuntimeState<H> for S {
@@ -67,26 +70,30 @@ impl<H: Hsm + 'static, S: HsmState<H> + 'static> RuntimeState<H> for S {
         handler: S::handler,
         exit: S::exit,
     };
+
+    fn state() -> State<H> {
+        return &Self::STATE;
+    }
 }
 
 pub struct StateMachine<
     H: Hsm + 'static,
-    const QUEUE_SIZE: usize = 32,
-    const MAX_NEST_DEPTH: usize = 32,
+    Q: QueueAdapter<H::Event>,
+    const MAX_NEST_DEPTH: usize = 8,
 > {
     path: FixedVec<State<H>, MAX_NEST_DEPTH>,
-    event_queue: EventQueue<H::Event, QUEUE_SIZE>,
+    event_queue: EventQueue<H::Event, Q>,
     initial: Option<State<H>>,
     next_event: Option<H::Event>,
 }
 
-impl<H: Hsm, const QUEUE_SIZE: usize, const MAX_NEST_DEPTH: usize>
-    StateMachine<H, QUEUE_SIZE, MAX_NEST_DEPTH>
+impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize>
+    StateMachine<H, Q, MAX_NEST_DEPTH>
 {
     pub fn new(initial: State<H>) -> Self {
         Self {
             path: FixedVec::<State<H>, MAX_NEST_DEPTH>::new(),
-            event_queue: EventQueue::<H::Event, QUEUE_SIZE>::new(),
+            event_queue: EventQueue::<H::Event, Q>::new(),
             initial: Some(initial),
             next_event: None,
         }
@@ -206,7 +213,7 @@ impl<H: Hsm, const QUEUE_SIZE: usize, const MAX_NEST_DEPTH: usize>
         }
     }
 
-    pub fn event_producer<'a>(&'a self) -> EventProducer<'a, H::Event, QUEUE_SIZE> {
+    pub fn event_producer<'a>(&'a self) -> EventProducer<'a, H::Event, Q> {
         self.event_queue.producer()
     }
 
