@@ -84,7 +84,6 @@ pub struct StateMachine<
     path: FixedVec<State<H>, MAX_NEST_DEPTH>,
     event_queue: EventQueue<H::Event, Q>,
     initial: Option<State<H>>,
-    next_event: Option<H::Event>,
 }
 
 impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize>
@@ -95,7 +94,6 @@ impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize>
             path: FixedVec::<State<H>, MAX_NEST_DEPTH>::new(),
             event_queue: EventQueue::<H::Event, Q>::new(),
             initial: Some(initial),
-            next_event: None,
         }
     }
 
@@ -220,15 +218,15 @@ impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize>
     pub fn step(&mut self, context: &mut H::Context) -> bool {
         if let Some(initial) = self.initial.take() {
             self.transition(context, initial);
-        } else if let Some(event) = self.next_event.take() {
+            return true;
+        } 
+
+        if let Some(event) = self.event_queue.dequeue() {
             self.dispatch(context, &event);
-        } else if let Some(event) = self.event_queue.dequeue() {
-            self.dispatch(context, &event);
+            return true;
         }
 
-        self.next_event = self.event_queue.dequeue();
-
-        self.next_event.is_some()
+        false
     }
 
     pub fn step_all(&mut self, context: &mut H::Context) {
