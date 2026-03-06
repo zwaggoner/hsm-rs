@@ -116,6 +116,7 @@ unsafe impl<T: Copy + Sync, const N: usize> Sync for MpmcBoundedQueue<T, N> {}
 #[cfg(test)]
 mod tests {
     use super::MpmcBoundedQueue;
+    use crate::event_queue::QueueAdapter;
     use loom::sync::Arc;
     use loom::sync::atomic::{AtomicUsize, Ordering};
     use loom::thread;
@@ -123,7 +124,7 @@ mod tests {
     #[test]
     fn enqueue_dequeue_roundtrip() {
         loom::model(|| {
-            let queue = MpmcBoundedQueue::<u32, 4>::new();
+            let queue = MpmcBoundedQueue::<u32, 4>::default();
 
             assert_eq!(queue.dequeue(), None);
             assert_eq!(queue.enqueue(7), Ok(()));
@@ -135,11 +136,11 @@ mod tests {
     #[test]
     fn queue_full_and_empty_conditions() {
         loom::model(|| {
-            let queue = MpmcBoundedQueue::<u32, 2>::new();
+            let queue = MpmcBoundedQueue::<u32, 2>::default();
 
             assert_eq!(queue.enqueue(1), Ok(()));
             assert_eq!(queue.enqueue(2), Ok(()));
-            assert_eq!(queue.enqueue(3), Err(()));
+            assert_eq!(queue.enqueue(3), Err(3));
 
             assert_eq!(queue.dequeue(), Some(1));
             assert_eq!(queue.dequeue(), Some(2));
@@ -150,7 +151,7 @@ mod tests {
     #[test]
     fn wraparound_behavior() {
         loom::model(|| {
-            let queue = MpmcBoundedQueue::<u32, 4>::new();
+            let queue = MpmcBoundedQueue::<u32, 4>::default();
 
             for i in 0..4 {
                 assert_eq!(queue.enqueue(i), Ok(()));
@@ -161,7 +162,7 @@ mod tests {
 
             assert_eq!(queue.enqueue(4), Ok(()));
             assert_eq!(queue.enqueue(5), Ok(()));
-            assert_eq!(queue.enqueue(6), Err(()));
+            assert_eq!(queue.enqueue(6), Err(6));
 
             assert_eq!(queue.dequeue(), Some(2));
             assert_eq!(queue.dequeue(), Some(3));
@@ -174,7 +175,7 @@ mod tests {
     #[test]
     fn loom_spsc_single_item() {
         loom::model(|| {
-            let queue = Arc::new(MpmcBoundedQueue::<usize, 2>::new());
+            let queue = Arc::new(MpmcBoundedQueue::<usize, 2>::default());
 
             let producer_queue = Arc::clone(&queue);
             let producer = thread::spawn(move || {
@@ -201,7 +202,7 @@ mod tests {
     #[test]
     fn loom_mpsc_all_items_consumed_once() {
         loom::model(|| {
-            let queue = Arc::new(MpmcBoundedQueue::<usize, 2>::new());
+            let queue = Arc::new(MpmcBoundedQueue::<usize, 2>::default());
             let consumed_count = Arc::new(AtomicUsize::new(0));
             let seen_mask = Arc::new(AtomicUsize::new(0));
 
