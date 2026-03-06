@@ -1,6 +1,6 @@
 extern crate rsm;
 
-use rsm::{Action, Hsm, HsmState, RuntimeState, State, StateMachine, MpmcBoundedQueue};
+use rsm::{Action, Hsm, HsmState, MpmcBoundedQueue, RuntimeState, State, StateMachine};
 
 #[derive(Debug)]
 enum UserEvent {

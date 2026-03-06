@@ -4,10 +4,10 @@ mod event_queue;
 mod fixed_vec;
 mod mpmc_bounded_queue;
 
-pub use mpmc_bounded_queue::MpmcBoundedQueue;
-pub use event_queue::{QueueAdapter, EventProducer};
 use event_queue::EventQueue;
+pub use event_queue::{EventProducer, QueueAdapter};
 use fixed_vec::FixedVec;
+pub use mpmc_bounded_queue::MpmcBoundedQueue;
 
 pub trait Hsm {
     type Context: 'static;

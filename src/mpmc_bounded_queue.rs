@@ -20,7 +20,7 @@ pub struct MpmcBoundedQueue<T, const SIZE: usize> {
     dequeue_pos: AtomicUsize,
 }
 
-impl <T, const SIZE: usize> Default for MpmcBoundedQueue<T, SIZE> {
+impl<T, const SIZE: usize> Default for MpmcBoundedQueue<T, SIZE> {
     fn default() -> Self {
         assert!(SIZE >= 2, "Queue size must be at least two elements");
         assert!(SIZE.is_power_of_two(), "Queue size must be a power of two");
