@@ -8,6 +8,7 @@ use event_queue::EventQueue;
 pub use event_queue::{EventProducer, QueueAdapter};
 use fixed_vec::FixedVec;
 pub use mpmc_bounded_queue::MpmcBoundedQueue;
+use core::marker::PhantomData;
 
 pub trait Hsm {
     type Context: 'static;
@@ -76,27 +77,36 @@ impl<H: Hsm + 'static, S: HsmState<H> + 'static> RuntimeState<H> for S {
     }
 }
 
+mod _private {
+    pub trait Sealed{}
+}
+
+pub trait RunState : _private::Sealed {}
+
+pub struct Init{}
+
+impl _private::Sealed for Init {}
+impl RunState for Init {}
+
+pub struct Run{}
+
+impl _private::Sealed for Run {}
+impl RunState for Run {}
+
 pub struct StateMachine<
     H: Hsm + 'static,
     Q: QueueAdapter<H::Event>,
     const MAX_NEST_DEPTH: usize = 8,
+    S: RunState = Init
 > {
     path: FixedVec<State<H>, MAX_NEST_DEPTH>,
     event_queue: EventQueue<H::Event, Q>,
-    initial: Option<State<H>>,
+    _pd: PhantomData<S>,
 }
 
-impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize>
-    StateMachine<H, Q, MAX_NEST_DEPTH>
+impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize, S: RunState>
+    StateMachine<H, Q, MAX_NEST_DEPTH, S>
 {
-    pub fn new(initial: State<H>) -> Self {
-        Self {
-            path: FixedVec::<State<H>, MAX_NEST_DEPTH>::new(),
-            event_queue: EventQueue::<H::Event, Q>::new(),
-            initial: Some(initial),
-        }
-    }
-
     fn get_path(state: State<H>) -> FixedVec<State<H>, MAX_NEST_DEPTH> {
         let mut curr_state = state;
         let mut path: FixedVec<State<H>, MAX_NEST_DEPTH> = FixedVec::new();
@@ -198,7 +208,37 @@ impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize>
         }
     }
 
-    fn dispatch(&mut self, context: &mut H::Context, event: &H::Event) {
+    pub fn event_producer<'a>(&'a self) -> EventProducer<'a, H::Event, Q> {
+        self.event_queue.producer()
+    }
+}
+
+impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize>
+    StateMachine<H, Q, MAX_NEST_DEPTH, Init>
+{
+    pub fn new() -> Self {
+        Self {
+            path: FixedVec::<State<H>, MAX_NEST_DEPTH>::new(),
+            event_queue: EventQueue::<H::Event, Q>::new(),
+            _pd: PhantomData::<Init>,
+        }
+    }
+
+    pub fn initial(mut self, context: &mut H::Context, state: State<H>) -> StateMachine<H, Q, MAX_NEST_DEPTH, Run> {
+        self.transition(context, state);
+
+        StateMachine::<H, Q, MAX_NEST_DEPTH, Run> {
+            path: self.path,
+            event_queue: self.event_queue,
+            _pd: PhantomData::<Run>,
+        }
+    }
+}
+
+impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize>
+    StateMachine<H, Q, MAX_NEST_DEPTH, Run>
+{
+    pub fn dispatch(&mut self, context: &mut H::Context, event: &H::Event) {
         for state in self.path.iter().rev() {
             match (state.handler)(context, event) {
                 Action::<H>::Handled => break,
@@ -211,16 +251,7 @@ impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize>
         }
     }
 
-    pub fn event_producer<'a>(&'a self) -> EventProducer<'a, H::Event, Q> {
-        self.event_queue.producer()
-    }
-
     pub fn step(&mut self, context: &mut H::Context) -> bool {
-        if let Some(initial) = self.initial.take() {
-            self.transition(context, initial);
-            return true;
-        }
-
         if let Some(event) = self.event_queue.dequeue() {
             self.dispatch(context, &event);
             return true;
