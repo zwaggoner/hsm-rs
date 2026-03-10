@@ -4,11 +4,11 @@ mod event_queue;
 mod fixed_vec;
 mod mpmc_bounded_queue;
 
+use core::marker::PhantomData;
 use event_queue::EventQueue;
 pub use event_queue::{EventProducer, QueueAdapter};
 use fixed_vec::FixedVec;
 pub use mpmc_bounded_queue::MpmcBoundedQueue;
-use core::marker::PhantomData;
 
 pub trait Hsm {
     type Context: 'static;
@@ -78,17 +78,17 @@ impl<H: Hsm + 'static, S: HsmState<H> + 'static> RuntimeState<H> for S {
 }
 
 mod _private {
-    pub trait Sealed{}
+    pub trait Sealed {}
 }
 
-pub trait RunState : _private::Sealed {}
+pub trait RunState: _private::Sealed {}
 
-pub struct Init{}
+pub struct Init {}
 
 impl _private::Sealed for Init {}
 impl RunState for Init {}
 
-pub struct Run{}
+pub struct Run {}
 
 impl _private::Sealed for Run {}
 impl RunState for Run {}
@@ -97,7 +97,7 @@ pub struct StateMachine<
     H: Hsm + 'static,
     Q: QueueAdapter<H::Event>,
     const MAX_NEST_DEPTH: usize = 8,
-    S: RunState = Init
+    S: RunState = Init,
 > {
     path: FixedVec<State<H>, MAX_NEST_DEPTH>,
     event_queue: EventQueue<H::Event, Q>,
@@ -224,7 +224,11 @@ impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize>
         }
     }
 
-    pub fn initial(mut self, context: &mut H::Context, state: State<H>) -> StateMachine<H, Q, MAX_NEST_DEPTH, Run> {
+    pub fn initial(
+        mut self,
+        context: &mut H::Context,
+        state: State<H>,
+    ) -> StateMachine<H, Q, MAX_NEST_DEPTH, Run> {
         self.transition(context, state);
 
         StateMachine::<H, Q, MAX_NEST_DEPTH, Run> {
