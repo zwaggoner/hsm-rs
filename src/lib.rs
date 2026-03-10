@@ -213,6 +213,12 @@ impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize, S: RunState
     }
 }
 
+impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize> Default for StateMachine<H, Q, MAX_NEST_DEPTH, Init> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize>
     StateMachine<H, Q, MAX_NEST_DEPTH, Init>
 {
