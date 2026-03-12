@@ -8,66 +8,67 @@ enum UserEvent {
 }
 
 #[derive(Debug)]
-struct ActorCtx {}
+struct TestActor {}
 
-struct ActorSM;
-
-impl Hsm for ActorSM {
+impl Hsm for TestActor {
     type Event = UserEvent;
-    type Context = ActorCtx;
+
+    fn initial(&mut self) -> State<Self> {
+        Top::state()
+    }
 }
 
 struct Actor {
-    sm: StateMachine<ActorSM, MpmcBoundedQueue<UserEvent, 32>>,
-    context: ActorCtx,
+    sm: StateMachine<TestActor, MpmcBoundedQueue<UserEvent, 32>>,
+    context: TestActor,
 }
 
 struct Top;
 
-impl HsmState<ActorSM> for Top {
-    fn initial(_context: &mut ActorCtx) -> Option<State<ActorSM>> {
+impl HsmState<Top> for TestActor {
+    fn initial(&mut self) -> Option<State<Self>> {
         println!("Top State Initial");
 
-        Some(&State1::STATE)
+        Some(State1::state())
     }
 
-    fn entry(_context: &mut ActorCtx) {
+    fn entry(&mut self) {
         println!("Top State Entry");
     }
 }
 
 struct State1;
 
-impl HsmState<ActorSM> for State1 {
-    const PARENT: Option<State<ActorSM>> = Some(&Top::STATE);
+impl HsmState<State1> for TestActor {
+    const PARENT: Option<State<Self>> = Some(&Top::STATE);
 
-    fn entry(_context: &mut ActorCtx) {
+    fn entry(&mut self) {
         println!("State1 Entry");
     }
 
-    fn handler(_context: &mut ActorCtx, _event: &UserEvent) -> Action<ActorSM> {
-        Action::<ActorSM>::Transition(&State2::STATE)
+    fn handler(&mut self, _event: &UserEvent) -> Action<Self> {
+        Action::<Self>::Transition(&State2::STATE)
     }
 
-    fn exit(_context: &mut ActorCtx) {
+    fn exit(&mut self) {
         println!("State1 Exit");
     }
 }
 
 struct State2;
 
-impl HsmState<ActorSM> for State2 {
-    const PARENT: Option<State<ActorSM>> = Some(&Top::STATE);
+impl HsmState<State2> for TestActor {
+    const PARENT: Option<State<Self>> = Some(&Top::STATE);
 
-    fn entry(_context: &mut ActorCtx) {
+    fn entry(&mut self) {
         println!("State2 Entry");
     }
 
-    fn handler(_context: &mut ActorCtx, _event: &UserEvent) -> Action<ActorSM> {
-        Action::<ActorSM>::Transition(&State1::STATE)
+    fn handler(&mut self, _event: &UserEvent) -> Action<Self> {
+        Action::<Self>::Transition(State1::state())
     }
 
-    fn exit(_context: &mut ActorCtx) {
+    fn exit(&mut self) {
         println!("State2 Exit");
     }
 }
@@ -75,7 +76,7 @@ impl HsmState<ActorSM> for State2 {
 fn main() {
     let mut actor = Actor {
         sm: StateMachine::new(),
-        context: ActorCtx {},
+        context: TestActor {},
     };
 
     let producer = actor.sm.event_producer();
@@ -84,7 +85,7 @@ fn main() {
     producer.enqueue(UserEvent::TestEvent).unwrap();
     producer.enqueue(UserEvent::TestEvent).unwrap();
 
-    let mut sm = actor.sm.initial(&mut actor.context, Top::state());
+    let mut sm = actor.sm.initial(&mut actor.context);
 
     sm.step_all(&mut actor.context);
 }

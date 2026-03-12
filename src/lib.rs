@@ -10,9 +10,10 @@ pub use event_queue::{EventProducer, QueueAdapter};
 use fixed_vec::FixedVec;
 pub use mpmc_bounded_queue::MpmcBoundedQueue;
 
-pub trait Hsm {
-    type Context: 'static;
+pub trait Hsm : Sized {
     type Event: 'static;
+
+    fn initial(&mut self) -> State<Self>; 
 }
 
 pub type State<H> = &'static StateDesc<H>;
@@ -28,10 +29,10 @@ pub enum Action<H: Hsm + 'static> {
 pub struct StateDesc<H: Hsm + 'static> {
     type_id: core::any::TypeId,
     parent: Option<State<H>>,
-    initial: fn(&mut H::Context) -> Option<State<H>>,
-    entry: fn(&mut H::Context),
-    handler: fn(&mut H::Context, &H::Event) -> Action<H>,
-    exit: fn(&mut H::Context),
+    initial: fn(&mut H) -> Option<State<H>>,
+    entry: fn(&mut H),
+    handler: fn(&mut H, &H::Event) -> Action<H>,
+    exit: fn(&mut H),
 }
 
 impl<H: Hsm> PartialEq for StateDesc<H> {
@@ -40,36 +41,38 @@ impl<H: Hsm> PartialEq for StateDesc<H> {
     }
 }
 
-pub trait HsmState<H: Hsm + 'static> {
-    const PARENT: Option<State<H>> = None;
+pub trait HsmState<S> : Hsm + Sized 
+where Self : 'static
+{
+    const PARENT: Option<State<Self>> = None;
 
-    fn initial(_context: &mut H::Context) -> Option<State<H>> {
+    fn initial(&mut self) -> Option<State<Self>> {
         None
     }
 
-    fn entry(_context: &mut H::Context) {}
+    fn entry(&mut self) {}
 
-    fn handler(_context: &mut H::Context, _event: &H::Event) -> Action<H> {
-        Action::<H>::Unhandled
+    fn handler(&mut self, _event: &Self::Event) -> Action<Self> {
+        Action::<Self>::Unhandled
     }
 
-    fn exit(_context: &mut H::Context) {}
+    fn exit(&mut self) {}
 }
 
-pub trait RuntimeState<H: Hsm + 'static>: HsmState<H> {
+pub trait RuntimeState<H: Hsm + 'static> {
     const STATE: StateDesc<H>;
 
     fn state() -> State<H>;
 }
 
-impl<H: Hsm + 'static, S: HsmState<H> + 'static> RuntimeState<H> for S {
+impl<S: 'static, H: HsmState<S> + 'static> RuntimeState<H> for S {
     const STATE: StateDesc<H> = StateDesc::<H> {
         type_id: core::any::TypeId::of::<S>(),
-        parent: S::PARENT,
-        initial: S::initial,
-        entry: S::entry,
-        handler: S::handler,
-        exit: S::exit,
+        parent: H::PARENT,
+        initial: <H as HsmState<S>>::initial,
+        entry: H::entry,
+        handler: H::handler,
+        exit: H::exit,
     };
 
     fn state() -> State<H> {
@@ -164,7 +167,7 @@ impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize, S: RunState
         Some(last_common_ancester)
     }
 
-    fn transition(&mut self, context: &mut H::Context, target: State<H>) {
+    fn transition(&mut self, context: &mut H, target: State<H>) {
         let mut transition_target = Some(target);
 
         while let Some(state) = transition_target {
@@ -191,7 +194,7 @@ impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize, S: RunState
         }
     }
 
-    fn enter(&mut self, context: &mut H::Context, target_path: &[State<H>]) {
+    fn enter(&mut self, context: &mut H, target_path: &[State<H>]) {
         for state in target_path {
             self.path
                 .push(state)
@@ -200,7 +203,7 @@ impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize, S: RunState
         }
     }
 
-    fn exit_to(&mut self, context: &mut H::Context, end: usize) {
+    fn exit_to(&mut self, context: &mut H, end: usize) {
         while self.path.len() > end {
             if let Some(state) = self.path.pop() {
                 (state.exit)(context);
@@ -232,10 +235,10 @@ impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize>
 
     pub fn initial(
         mut self,
-        context: &mut H::Context,
-        state: State<H>,
+        context: &mut H
     ) -> StateMachine<H, Q, MAX_NEST_DEPTH, Run> {
-        self.transition(context, state);
+        let target = <H as Hsm>::initial(context);
+        self.transition(context, target);
 
         StateMachine::<H, Q, MAX_NEST_DEPTH, Run> {
             path: self.path,
@@ -248,7 +251,7 @@ impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize>
 impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize>
     StateMachine<H, Q, MAX_NEST_DEPTH, Run>
 {
-    pub fn dispatch(&mut self, context: &mut H::Context, event: &H::Event) {
+    pub fn dispatch(&mut self, context: &mut H, event: &H::Event) {
         for state in self.path.iter().rev() {
             match (state.handler)(context, event) {
                 Action::<H>::Handled => break,
@@ -261,7 +264,7 @@ impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize>
         }
     }
 
-    pub fn step(&mut self, context: &mut H::Context) -> bool {
+    pub fn step(&mut self, context: &mut H) -> bool {
         if let Some(event) = self.event_queue.dequeue() {
             self.dispatch(context, &event);
             return true;
@@ -270,7 +273,7 @@ impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize>
         false
     }
 
-    pub fn step_all(&mut self, context: &mut H::Context) {
+    pub fn step_all(&mut self, context: &mut H) {
         while self.step(context) {}
     }
 }
