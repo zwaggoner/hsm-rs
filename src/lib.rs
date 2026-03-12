@@ -10,10 +10,10 @@ pub use event_queue::{EventProducer, QueueAdapter};
 use fixed_vec::FixedVec;
 pub use mpmc_bounded_queue::MpmcBoundedQueue;
 
-pub trait Hsm : Sized {
+pub trait Hsm: Sized {
     type Event: 'static;
 
-    fn initial(&mut self) -> State<Self>; 
+    fn initial(&mut self) -> State<Self>;
 }
 
 pub type State<H> = &'static StateDesc<H>;
@@ -41,8 +41,9 @@ impl<H: Hsm> PartialEq for StateDesc<H> {
     }
 }
 
-pub trait HsmState<S> : Hsm + Sized 
-where Self : 'static
+pub trait HsmState<S>: Hsm + Sized
+where
+    Self: 'static,
 {
     const PARENT: Option<State<Self>> = None;
 
@@ -216,7 +217,9 @@ impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize, S: RunState
     }
 }
 
-impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize> Default for StateMachine<H, Q, MAX_NEST_DEPTH, Init> {
+impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize> Default
+    for StateMachine<H, Q, MAX_NEST_DEPTH, Init>
+{
     fn default() -> Self {
         Self::new()
     }
@@ -233,10 +236,7 @@ impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize>
         }
     }
 
-    pub fn initial(
-        mut self,
-        context: &mut H
-    ) -> StateMachine<H, Q, MAX_NEST_DEPTH, Run> {
+    pub fn initial(mut self, context: &mut H) -> StateMachine<H, Q, MAX_NEST_DEPTH, Run> {
         let target = <H as Hsm>::initial(context);
         self.transition(context, target);
 
