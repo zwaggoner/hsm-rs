@@ -272,8 +272,12 @@ mod tests {
             {
                 let queue = MpmcBoundedQueue::<DropCounter, 4>::default();
 
-                queue.enqueue(DropCounter { counter: &counter }).expect("Queue unexpectedly full");
-                queue.enqueue(DropCounter { counter: &counter }).expect("Queue unexpectedly full");
+                queue
+                    .enqueue(DropCounter { counter: &counter })
+                    .expect("Queue unexpectedly full");
+                queue
+                    .enqueue(DropCounter { counter: &counter })
+                    .expect("Queue unexpectedly full");
 
                 assert_eq!(counter.get(), 0);
             }
@@ -291,8 +295,12 @@ mod tests {
             {
                 let queue = MpmcBoundedQueue::<DropCounter, 4>::default();
 
-                queue.enqueue(DropCounter { counter: &counter }).expect("Queue unexpectedly full");
-                queue.enqueue(DropCounter { counter: &counter }).expect("Queue unexpectedly full");
+                queue
+                    .enqueue(DropCounter { counter: &counter })
+                    .expect("Queue unexpectedly full");
+                queue
+                    .enqueue(DropCounter { counter: &counter })
+                    .expect("Queue unexpectedly full");
 
                 let _a = queue.dequeue().unwrap();
                 let _b = queue.dequeue().unwrap();
