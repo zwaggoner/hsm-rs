@@ -258,8 +258,8 @@ pub struct Actor<H: Hsm + 'static, Q: QueueAdapter<H::Event>, const MAX_NEST_DEP
 impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize> Actor<H, Q, MAX_NEST_DEPTH> {
     pub fn new(context: H, state_machine: StateMachine<H, MAX_NEST_DEPTH, Run>) -> Self {
         Self {
-            context: context,
-            state_machine: state_machine,
+            context,
+            state_machine,
             event_queue: EventQueue::<H::Event, Q>::new(),
         }
     }
