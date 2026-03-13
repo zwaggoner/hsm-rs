@@ -249,19 +249,28 @@ pub trait Step {
     fn step(&mut self) -> bool;
 }
 
+enum CurrSM<H: Hsm + 'static, const MAX_NEST_DEPTH: usize> {
+    Init(StateMachine<H, MAX_NEST_DEPTH, Init>),
+    Run(StateMachine<H, MAX_NEST_DEPTH, Run>),
+}
+
+impl<H: Hsm, const MAX_NEST_DEPTH: usize> Default for CurrSM<H, MAX_NEST_DEPTH> {
+    fn default() -> Self {
+        CurrSM::Init(StateMachine::<H, MAX_NEST_DEPTH>::default())
+    }
+}
+
 pub struct Actor<H: Hsm + 'static, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize = 8> {
     context: H,
-    sm: StateMachine<H, MAX_NEST_DEPTH, Run>,
+    sm: CurrSM<H, MAX_NEST_DEPTH>,
     event_queue: EventQueue<H::Event, Q>,
 }
 
 impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize> Actor<H, Q, MAX_NEST_DEPTH> {
-    pub fn new(mut context: H, queue: Q) -> Self {
-        let sm = StateMachine::<H, MAX_NEST_DEPTH>::new().initial(&mut context);
-
+    pub fn new(context: H, queue: Q) -> Self {
         Self {
             context,
-            sm,
+            sm: CurrSM::default(),
             event_queue: EventQueue::<H::Event, Q>::new(queue),
         }
     }
@@ -275,8 +284,14 @@ impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize> Step
     for Actor<H, Q, MAX_NEST_DEPTH>
 {
     fn step(&mut self) -> bool {
-        if let Some(event) = self.event_queue.dequeue() {
-            self.sm.dispatch(&mut self.context, &event);
+        if let CurrSM::Run(sm) = &mut self.sm {
+            if let Some(event) = self.event_queue.dequeue() {
+                sm.dispatch(&mut self.context, &event);
+                return true;
+            }
+        }
+        else if let CurrSM::Init(sm) = core::mem::take(&mut self.sm) {
+            self.sm = CurrSM::Run(sm.initial(&mut self.context));
             return true;
         }
 
