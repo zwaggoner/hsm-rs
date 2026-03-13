@@ -109,11 +109,11 @@ impl<T, const SIZE: usize> QueueAdapter<T> for MpmcBoundedQueue<T, SIZE> {
 impl<T, const N: usize> MultiProducer for MpmcBoundedQueue<T, N> {}
 
 // Ensure the queue can be safely shared across thread boundaries
-unsafe impl<T: Copy + Send, const N: usize> Send for MpmcBoundedQueue<T, N> {}
+unsafe impl<T: Send, const N: usize> Send for MpmcBoundedQueue<T, N> {}
 
 // The queue itself can be shared immutably via atomic operations for pushing
 // Only the consumer needs exclusive access for popping
-unsafe impl<T: Copy + Sync, const N: usize> Sync for MpmcBoundedQueue<T, N> {}
+unsafe impl<T: Sync, const N: usize> Sync for MpmcBoundedQueue<T, N> {}
 
 #[cfg(test)]
 mod tests {
