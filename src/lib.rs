@@ -97,18 +97,12 @@ pub struct Run {}
 impl _private::Sealed for Run {}
 impl RunState for Run {}
 
-pub struct StateMachine<
-    H: Hsm + 'static,
-    const MAX_NEST_DEPTH: usize = 8,
-    S: RunState = Init,
-> {
+pub struct StateMachine<H: Hsm + 'static, const MAX_NEST_DEPTH: usize = 8, S: RunState = Init> {
     path: FixedVec<State<H>, MAX_NEST_DEPTH>,
     _pd: PhantomData<S>,
 }
 
-impl<H: Hsm, const MAX_NEST_DEPTH: usize, S: RunState>
-    StateMachine<H, MAX_NEST_DEPTH, S>
-{
+impl<H: Hsm, const MAX_NEST_DEPTH: usize, S: RunState> StateMachine<H, MAX_NEST_DEPTH, S> {
     fn get_path(state: State<H>) -> FixedVec<State<H>, MAX_NEST_DEPTH> {
         let mut curr_state = state;
         let mut path: FixedVec<State<H>, MAX_NEST_DEPTH> = FixedVec::new();
@@ -211,17 +205,13 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize, S: RunState>
     }
 }
 
-impl<H: Hsm, const MAX_NEST_DEPTH: usize> Default
-    for StateMachine<H, MAX_NEST_DEPTH, Init>
-{
+impl<H: Hsm, const MAX_NEST_DEPTH: usize> Default for StateMachine<H, MAX_NEST_DEPTH, Init> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<H: Hsm, const MAX_NEST_DEPTH: usize>
-    StateMachine<H, MAX_NEST_DEPTH, Init>
-{
+impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH, Init> {
     pub fn new() -> Self {
         Self {
             path: FixedVec::<State<H>, MAX_NEST_DEPTH>::new(),
@@ -240,9 +230,7 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize>
     }
 }
 
-impl<H: Hsm, const MAX_NEST_DEPTH: usize>
-    StateMachine<H, MAX_NEST_DEPTH, Run>
-{
+impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH, Run> {
     pub fn dispatch(&mut self, context: &mut H, event: &H::Event) {
         for state in self.path.iter().rev() {
             match (state.handler)(context, event) {
@@ -255,27 +243,19 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize>
             }
         }
     }
-
-
 }
 
 pub trait Step {
     fn step(&mut self) -> bool;
 }
 
-pub struct Actor<
-    H: Hsm + 'static,
-    Q: QueueAdapter<H::Event>,
-    const MAX_NEST_DEPTH: usize = 8,
->
-{
+pub struct Actor<H: Hsm + 'static, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize = 8> {
     context: H,
     state_machine: StateMachine<H, MAX_NEST_DEPTH, Run>,
     event_queue: EventQueue<H::Event, Q>,
 }
 
-impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize> Actor<H, Q, MAX_NEST_DEPTH>
-{
+impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize> Actor<H, Q, MAX_NEST_DEPTH> {
     pub fn new(context: H, state_machine: StateMachine<H, MAX_NEST_DEPTH, Run>) -> Self {
         Self {
             context: context,
@@ -289,7 +269,9 @@ impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize> Actor<H, Q,
     }
 }
 
-impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize> Step for Actor<H, Q, MAX_NEST_DEPTH> {
+impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize> Step
+    for Actor<H, Q, MAX_NEST_DEPTH>
+{
     fn step(&mut self) -> bool {
         if let Some(event) = self.event_queue.dequeue() {
             self.state_machine.dispatch(&mut self.context, &event);
