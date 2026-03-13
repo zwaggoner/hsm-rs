@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-pub trait QueueAdapter<T>: Default {
+pub trait QueueAdapter<T> {
     fn enqueue(&self, data: T) -> Result<(), T>;
     fn dequeue(&self) -> Option<T>;
 }
@@ -33,9 +33,9 @@ pub(crate) struct EventQueue<E, Q: QueueAdapter<E>> {
 }
 
 impl<E, Q: QueueAdapter<E>> EventQueue<E, Q> {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(queue: Q) -> Self {
         Self {
-            inner: Q::default(),
+            inner: queue,
             _pd: PhantomData::<E>,
         }
     }

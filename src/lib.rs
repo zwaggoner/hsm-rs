@@ -256,13 +256,13 @@ pub struct Actor<H: Hsm + 'static, Q: QueueAdapter<H::Event>, const MAX_NEST_DEP
 }
 
 impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize> Actor<H, Q, MAX_NEST_DEPTH> {
-    pub fn new(mut context: H) -> Self {
+    pub fn new(mut context: H, queue: Q) -> Self {
         let sm = StateMachine::<H, MAX_NEST_DEPTH>::new().initial(&mut context);
 
         Self {
             context,
             sm,
-            event_queue: EventQueue::<H::Event, Q>::new(),
+            event_queue: EventQueue::<H::Event, Q>::new(queue),
         }
     }
 
