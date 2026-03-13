@@ -251,15 +251,17 @@ pub trait Step {
 
 pub struct Actor<H: Hsm + 'static, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize = 8> {
     context: H,
-    state_machine: StateMachine<H, MAX_NEST_DEPTH, Run>,
+    sm: StateMachine<H, MAX_NEST_DEPTH, Run>,
     event_queue: EventQueue<H::Event, Q>,
 }
 
 impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize> Actor<H, Q, MAX_NEST_DEPTH> {
-    pub fn new(context: H, state_machine: StateMachine<H, MAX_NEST_DEPTH, Run>) -> Self {
+    pub fn new(mut context: H) -> Self {
+        let sm = StateMachine::<H, MAX_NEST_DEPTH>::new().initial(&mut context);
+
         Self {
             context,
-            state_machine,
+            sm,
             event_queue: EventQueue::<H::Event, Q>::new(),
         }
     }
@@ -274,7 +276,7 @@ impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize> Step
 {
     fn step(&mut self) -> bool {
         if let Some(event) = self.event_queue.dequeue() {
-            self.state_machine.dispatch(&mut self.context, &event);
+            self.sm.dispatch(&mut self.context, &event);
             return true;
         }
 

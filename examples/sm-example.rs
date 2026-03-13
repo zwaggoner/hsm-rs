@@ -1,7 +1,7 @@
 extern crate rsm;
 
 use rsm::{
-    Action, Actor, Hsm, HsmState, MpmcBoundedQueue, RuntimeState, State, StateMachine, Step,
+    Action, Actor, Hsm, HsmState, MpmcBoundedQueue, RuntimeState, State, Step,
 };
 
 #[derive(Debug)]
@@ -71,10 +71,9 @@ impl HsmState<State2> for TestActor {
 }
 
 fn main() {
-    let mut context = TestActor {};
-    let sm = StateMachine::new().initial(&mut context);
+    let context = TestActor {};
 
-    let mut actor = Actor::<TestActor, MpmcBoundedQueue<UserEvent, 32>>::new(context, sm);
+    let mut actor = Actor::<TestActor, MpmcBoundedQueue<UserEvent, 32>>::new(context);
 
     let producer = actor.event_producer();
 
