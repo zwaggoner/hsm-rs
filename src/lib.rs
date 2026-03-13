@@ -289,8 +289,7 @@ impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize> Step
                 sm.dispatch(&mut self.context, &event);
                 return true;
             }
-        }
-        else if let CurrSM::Init(sm) = core::mem::take(&mut self.sm) {
+        } else if let CurrSM::Init(sm) = core::mem::take(&mut self.sm) {
             self.sm = CurrSM::Run(sm.initial(&mut self.context));
             return true;
         }
