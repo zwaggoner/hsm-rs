@@ -106,14 +106,16 @@ impl<T, const SIZE: usize> QueueAdapter<T> for MpmcBoundedQueue<T, SIZE> {
     }
 }
 
+impl<T, const SIZE: usize> Drop for MpmcBoundedQueue<T, SIZE> {
+    fn drop(&mut self) {
+        while let Some(_) = self.dequeue() {}
+    }
+}
+
 impl<T, const N: usize> MultiProducer for MpmcBoundedQueue<T, N> {}
 
-// Ensure the queue can be safely shared across thread boundaries
 unsafe impl<T: Send, const N: usize> Send for MpmcBoundedQueue<T, N> {}
-
-// The queue itself can be shared immutably via atomic operations for pushing
-// Only the consumer needs exclusive access for popping
-unsafe impl<T: Sync, const N: usize> Sync for MpmcBoundedQueue<T, N> {}
+unsafe impl<T: Send, const N: usize> Sync for MpmcBoundedQueue<T, N> {}
 
 #[cfg(test)]
 mod tests {
@@ -245,6 +247,61 @@ mod tests {
             assert_eq!(consumed_count.load(Ordering::Acquire), 2);
             assert_eq!(seen_mask.load(Ordering::Acquire), 0b11);
             assert_eq!(queue.dequeue(), None);
+        });
+    }
+
+    use core::cell::Cell;
+
+    #[derive(Debug)]
+    struct DropCounter<'a> {
+        counter: &'a Cell<usize>,
+    }
+
+    impl<'a> Drop for DropCounter<'a> {
+        fn drop(&mut self) {
+            let v = self.counter.get();
+            self.counter.set(v + 1);
+        }
+    }
+
+    #[test]
+    fn drop() {
+        loom::model(|| {
+            let counter = Cell::new(0);
+
+            {
+                let queue = MpmcBoundedQueue::<DropCounter, 4>::default();
+
+                queue.enqueue(DropCounter { counter: &counter }).expect("Queue unexpectedly full");
+                queue.enqueue(DropCounter { counter: &counter }).expect("Queue unexpectedly full");
+
+                assert_eq!(counter.get(), 0);
+            }
+
+            // Nothing extra dropped
+            assert_eq!(counter.get(), 2);
+        });
+    }
+
+    #[test]
+    fn drop_consumed() {
+        loom::model(|| {
+            let counter = Cell::new(0);
+
+            {
+                let queue = MpmcBoundedQueue::<DropCounter, 4>::default();
+
+                queue.enqueue(DropCounter { counter: &counter }).expect("Queue unexpectedly full");
+                queue.enqueue(DropCounter { counter: &counter }).expect("Queue unexpectedly full");
+
+                let _a = queue.dequeue().unwrap();
+                let _b = queue.dequeue().unwrap();
+
+                assert_eq!(counter.get(), 0);
+            }
+
+            // Nothing extra dropped
+            assert_eq!(counter.get(), 2);
         });
     }
 }

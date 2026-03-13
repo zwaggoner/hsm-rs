@@ -147,17 +147,17 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize, S: RunState> StateMachine<H, MAX_NEST_
             return None;
         }
 
-        let mut last_common_ancester = 0;
+        let mut last_common_ancestor = 0;
 
         for i in 1..max_search_depth {
             if self.path[i] == target_path[i] {
-                last_common_ancester = i;
+                last_common_ancestor = i;
             } else {
                 break;
             }
         }
 
-        Some(last_common_ancester)
+        Some(last_common_ancestor)
     }
 
     fn transition(&mut self, context: &mut H, target: State<H>) {
