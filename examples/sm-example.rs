@@ -71,7 +71,10 @@ impl HsmState<State2> for TestActor {
 fn main() {
     let context = TestActor {};
 
-    let mut actor = Actor::<TestActor, MpmcBoundedQueue<UserEvent, 32>>::new(context, MpmcBoundedQueue::<UserEvent, 32>::default());
+    let mut actor = Actor::<TestActor, MpmcBoundedQueue<UserEvent, 32>>::new(
+        context,
+        MpmcBoundedQueue::<UserEvent, 32>::default(),
+    );
 
     let producer = actor.event_producer();
 
