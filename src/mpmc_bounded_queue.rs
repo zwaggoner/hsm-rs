@@ -108,7 +108,7 @@ impl<T, const SIZE: usize> QueueAdapter<T> for MpmcBoundedQueue<T, SIZE> {
 
 impl<T, const SIZE: usize> Drop for MpmcBoundedQueue<T, SIZE> {
     fn drop(&mut self) {
-        while let Some(_) = self.dequeue() {}
+        while self.dequeue().is_some() {}
     }
 }
 
