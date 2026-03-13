@@ -1,6 +1,6 @@
 extern crate rsm;
 
-use rsm::{Action, Hsm, HsmState, MpmcBoundedQueue, RuntimeState, State, StateMachine};
+use rsm::{Action, Hsm, HsmState, MpmcBoundedQueue, RuntimeState, State, StateMachine, Actor, Step};
 
 #[derive(Debug)]
 enum UserEvent {
@@ -16,11 +16,6 @@ impl Hsm for TestActor {
     fn initial(&mut self) -> State<Self> {
         Top::state()
     }
-}
-
-struct Actor {
-    sm: StateMachine<TestActor, MpmcBoundedQueue<UserEvent, 32>>,
-    context: TestActor,
 }
 
 struct Top;
@@ -74,18 +69,16 @@ impl HsmState<State2> for TestActor {
 }
 
 fn main() {
-    let mut actor = Actor {
-        sm: StateMachine::new(),
-        context: TestActor {},
-    };
+    let mut context = TestActor {};
+    let sm = StateMachine::new().initial(&mut context);
 
-    let producer = actor.sm.event_producer();
+    let mut actor = Actor::<TestActor, MpmcBoundedQueue<UserEvent, 32>>::new(context, sm);
+
+    let producer = actor.event_producer();
 
     producer.enqueue(UserEvent::TestEvent).unwrap();
     producer.enqueue(UserEvent::TestEvent).unwrap();
     producer.enqueue(UserEvent::TestEvent).unwrap();
 
-    let mut sm = actor.sm.initial(&mut actor.context);
-
-    sm.step_all(&mut actor.context);
+    while actor.step() {}
 }
