@@ -69,15 +69,15 @@ where
     fn exit(&mut self) {}
 }
 
-pub trait MaybeState<H: Hsm + 'static> : _private::Sealed {
+pub trait MaybeState<H: Hsm + 'static>: _private::Sealed {
     const OPT_STATE: Option<State<H>>;
 }
 
 pub struct AsState<S>(PhantomData<S>);
 pub struct Top;
 
-impl<S> _private::Sealed for AsState<S> { }
-impl _private::Sealed for Top { }
+impl<S> _private::Sealed for AsState<S> {}
+impl _private::Sealed for Top {}
 
 impl<H: Hsm + 'static, S: 'static + _private::RuntimeStateDesc<H>> MaybeState<H> for AsState<S> {
     const OPT_STATE: Option<State<H>> = Some(&S::STATE);
@@ -87,7 +87,7 @@ impl<H: Hsm + 'static> MaybeState<H> for Top {
     const OPT_STATE: Option<State<H>> = None;
 }
 
-pub trait RuntimeState<H: Hsm + 'static> : _private::RuntimeStateDesc<H> {
+pub trait RuntimeState<H: Hsm + 'static>: _private::RuntimeStateDesc<H> {
     fn state() -> State<H>;
 }
 
