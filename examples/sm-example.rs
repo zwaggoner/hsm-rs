@@ -1,6 +1,6 @@
 extern crate rsm;
 
-use rsm::{Action, Actor, Hsm, HsmState, MpmcBoundedQueue, RuntimeState, State, Step};
+use rsm::{Action, Actor, Hsm, HsmState, MpmcBoundedQueue, RuntimeState, State, Step, AsState};
 
 #[derive(Debug)]
 enum UserEvent {
@@ -21,6 +21,8 @@ impl Hsm for TestActor {
 struct Top;
 
 impl HsmState<Top> for TestActor {
+    type Parent = rsm::Top;
+
     fn initial(&mut self) -> Option<State<Self>> {
         println!("Top State Initial");
 
@@ -35,7 +37,7 @@ impl HsmState<Top> for TestActor {
 struct State1;
 
 impl HsmState<State1> for TestActor {
-    const PARENT: Option<State<Self>> = Some(&Top::STATE);
+    type Parent = AsState<Top>;
 
     fn entry(&mut self) {
         println!("State1 Entry");
@@ -53,7 +55,7 @@ impl HsmState<State1> for TestActor {
 struct State2;
 
 impl HsmState<State2> for TestActor {
-    const PARENT: Option<State<Self>> = Some(&Top::STATE);
+    type Parent = AsState<Top>;
 
     fn entry(&mut self) {
         println!("State2 Entry");

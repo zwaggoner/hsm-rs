@@ -45,7 +45,7 @@ pub trait HsmState<S>: Hsm + Sized
 where
     Self: 'static,
 {
-    const PARENT: Option<State<Self>> = None;
+    type Parent : MaybeState<Self>;
 
     fn initial(&mut self) -> Option<State<Self>> {
         None
@@ -60,6 +60,21 @@ where
     fn exit(&mut self) {}
 }
 
+pub trait MaybeState<H: Hsm + 'static> {
+    const OPT_STATE: Option<State<H>>;
+}
+
+pub struct AsState<T>(PhantomData<T>);
+pub struct Top;
+
+impl<H: Hsm + 'static, S: 'static + RuntimeState<H>> MaybeState<H> for AsState<S> {
+    const OPT_STATE: Option<State<H>> = Some(&S::STATE);
+}
+
+impl<H: Hsm + 'static> MaybeState<H> for Top {
+    const OPT_STATE: Option<State<H>> = None;
+}
+
 pub trait RuntimeState<H: Hsm + 'static> {
     const STATE: StateDesc<H>;
 
@@ -69,7 +84,7 @@ pub trait RuntimeState<H: Hsm + 'static> {
 impl<S: 'static, H: HsmState<S> + 'static> RuntimeState<H> for S {
     const STATE: StateDesc<H> = StateDesc::<H> {
         type_id: core::any::TypeId::of::<S>(),
-        parent: H::PARENT,
+        parent: H::Parent::OPT_STATE,
         initial: <H as HsmState<S>>::initial,
         entry: H::entry,
         handler: H::handler,
