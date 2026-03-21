@@ -41,6 +41,15 @@ impl<H: Hsm> PartialEq for StateDesc<H> {
     }
 }
 
+mod _private {
+    use super::{Hsm, StateDesc};
+
+    pub trait Sealed {}
+    pub trait RuntimeStateDesc<H: Hsm + 'static> {
+        const STATE: StateDesc<H>;
+    }
+}
+
 pub trait HsmState<S>: Hsm + Sized
 where
     Self: 'static,
@@ -60,14 +69,17 @@ where
     fn exit(&mut self) {}
 }
 
-pub trait MaybeState<H: Hsm + 'static> {
+pub trait MaybeState<H: Hsm + 'static> : _private::Sealed {
     const OPT_STATE: Option<State<H>>;
 }
 
-pub struct AsState<T>(PhantomData<T>);
+pub struct AsState<S>(PhantomData<S>);
 pub struct Top;
 
-impl<H: Hsm + 'static, S: 'static + RuntimeState<H>> MaybeState<H> for AsState<S> {
+impl<S> _private::Sealed for AsState<S> { }
+impl _private::Sealed for Top { }
+
+impl<H: Hsm + 'static, S: 'static + _private::RuntimeStateDesc<H>> MaybeState<H> for AsState<S> {
     const OPT_STATE: Option<State<H>> = Some(&S::STATE);
 }
 
@@ -75,13 +87,11 @@ impl<H: Hsm + 'static> MaybeState<H> for Top {
     const OPT_STATE: Option<State<H>> = None;
 }
 
-pub trait RuntimeState<H: Hsm + 'static> {
-    const STATE: StateDesc<H>;
-
+pub trait RuntimeState<H: Hsm + 'static> : _private::RuntimeStateDesc<H> {
     fn state() -> State<H>;
 }
 
-impl<S: 'static, H: HsmState<S> + 'static> RuntimeState<H> for S {
+impl<S: 'static, H: HsmState<S> + 'static> _private::RuntimeStateDesc<H> for S {
     const STATE: StateDesc<H> = StateDesc::<H> {
         type_id: core::any::TypeId::of::<S>(),
         parent: H::Parent::OPT_STATE,
@@ -90,14 +100,12 @@ impl<S: 'static, H: HsmState<S> + 'static> RuntimeState<H> for S {
         handler: H::handler,
         exit: H::exit,
     };
+}
 
+impl<S: 'static + _private::RuntimeStateDesc<H>, H: Hsm + 'static> RuntimeState<H> for S {
     fn state() -> State<H> {
         &Self::STATE
     }
-}
-
-mod _private {
-    pub trait Sealed {}
 }
 
 pub trait RunState: _private::Sealed {}

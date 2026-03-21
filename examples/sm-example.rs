@@ -44,7 +44,7 @@ impl HsmState<State1> for TestActor {
     }
 
     fn handler(&mut self, _event: &UserEvent) -> Action<Self> {
-        Action::<Self>::Transition(&State2::STATE)
+        Action::<Self>::Transition(State2::state())
     }
 
     fn exit(&mut self) {
