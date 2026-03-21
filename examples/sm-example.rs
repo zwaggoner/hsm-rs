@@ -1,6 +1,9 @@
 extern crate rsm;
 
-use rsm::{Action, Actor, AsState, Hsm, HsmState, MpmcBoundedQueue, RuntimeState, State, Step, Top};
+use rsm::{
+    Action, Actor, AsState, Hsm, HsmState, Mailbox, MpmcBoundedQueue, RuntimeState, State, Step,
+    Top,
+};
 
 #[derive(Debug)]
 enum UserEvent {
@@ -72,13 +75,10 @@ impl HsmState<State12> for TestActor {
 
 fn main() {
     let context = TestActor {};
+    let mailbox = Mailbox::new(MpmcBoundedQueue::<UserEvent, 32>::default());
+    let (producer, consumer) = mailbox.split().unwrap();
 
-    let mut actor = Actor::<TestActor, MpmcBoundedQueue<UserEvent, 32>>::new(
-        context,
-        MpmcBoundedQueue::<UserEvent, 32>::default(),
-    );
-
-    let producer = actor.event_producer();
+    let mut actor = Actor::<TestActor, MpmcBoundedQueue<UserEvent, 32>>::new(context, consumer);
 
     producer.enqueue(UserEvent::TestEvent).unwrap();
     producer.enqueue(UserEvent::TestEvent).unwrap();

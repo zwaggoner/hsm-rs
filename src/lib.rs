@@ -5,8 +5,7 @@ mod fixed_vec;
 mod mpmc_bounded_queue;
 
 use core::marker::PhantomData;
-use event_queue::EventQueue;
-pub use event_queue::{EventProducer, QueueAdapter};
+pub use event_queue::{EventConsumer, EventProducer, Mailbox, QueueAdapter};
 use fixed_vec::FixedVec;
 pub use mpmc_bounded_queue::MpmcBoundedQueue;
 
@@ -283,32 +282,30 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize> Default for CurrSM<H, MAX_NEST_DEPTH> 
     }
 }
 
-pub struct Actor<H: Hsm + 'static, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize = 8> {
+pub struct Actor<'a, H: Hsm + 'static, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize = 8> {
     context: H,
     sm: CurrSM<H, MAX_NEST_DEPTH>,
-    event_queue: EventQueue<H::Event, Q>,
+    event_consumer: EventConsumer<'a, H::Event, Q>,
 }
 
-impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize> Actor<H, Q, MAX_NEST_DEPTH> {
-    pub fn new(context: H, queue: Q) -> Self {
+impl<'a, H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize>
+    Actor<'a, H, Q, MAX_NEST_DEPTH>
+{
+    pub fn new(context: H, event_consumer: EventConsumer<'a, H::Event, Q>) -> Self {
         Self {
             context,
             sm: CurrSM::default(),
-            event_queue: EventQueue::<H::Event, Q>::new(queue),
+            event_consumer,
         }
-    }
-
-    pub fn event_producer<'a>(&'a self) -> EventProducer<'a, H::Event, Q> {
-        self.event_queue.producer()
     }
 }
 
-impl<H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize> Step
-    for Actor<H, Q, MAX_NEST_DEPTH>
+impl<'a, H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize> Step
+    for Actor<'a, H, Q, MAX_NEST_DEPTH>
 {
     fn step(&mut self) -> bool {
         if let CurrSM::Run(sm) = &mut self.sm {
-            if let Some(event) = self.event_queue.dequeue() {
+            if let Some(event) = self.event_consumer.dequeue() {
                 sm.dispatch(&mut self.context, &event);
                 return true;
             }
