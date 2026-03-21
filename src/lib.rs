@@ -45,7 +45,7 @@ pub trait HsmState<S>: Hsm + Sized
 where
     Self: 'static,
 {
-    type Parent : MaybeState<Self>;
+    type Parent: MaybeState<Self>;
 
     fn initial(&mut self) -> Option<State<Self>> {
         None
