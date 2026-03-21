@@ -17,6 +17,7 @@ impl Hsm for TestActor {
     type Event = UserEvent;
 
     fn initial(&mut self) -> State<Self> {
+        println!("TestActor Initial");
         State1::state()
     }
 }
@@ -35,12 +36,22 @@ impl HsmState<State1> for TestActor {
     fn entry(&mut self) {
         println!("State1 Entry");
     }
+
+    fn exit(&mut self) {
+        println!("State1 Exit");
+    }
 }
 
 struct State11;
 
 impl HsmState<State11> for TestActor {
     type Parent = AsState<State1>;
+
+    fn initial(&mut self) -> Option<State<Self>> {
+        println!("State11 Initial");
+
+        None
+    }
 
     fn entry(&mut self) {
         println!("State11 Entry");
@@ -59,6 +70,12 @@ struct State12;
 
 impl HsmState<State12> for TestActor {
     type Parent = AsState<State1>;
+
+    fn initial(&mut self) -> Option<State<Self>> {
+        println!("State12 Initial");
+
+        None
+    }
 
     fn entry(&mut self) {
         println!("State12 Entry");
