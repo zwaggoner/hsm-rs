@@ -1,6 +1,6 @@
 extern crate rsm;
 
-use rsm::{Action, Actor, AsState, Hsm, HsmState, MpmcBoundedQueue, RuntimeState, State, Step};
+use rsm::{Action, Actor, AsState, Hsm, HsmState, MpmcBoundedQueue, RuntimeState, State, Step, Top};
 
 #[derive(Debug)]
 enum UserEvent {
@@ -14,59 +14,59 @@ impl Hsm for TestActor {
     type Event = UserEvent;
 
     fn initial(&mut self) -> State<Self> {
-        Top::state()
-    }
-}
-
-struct Top;
-
-impl HsmState<Top> for TestActor {
-    type Parent = rsm::Top;
-
-    fn initial(&mut self) -> Option<State<Self>> {
-        println!("Top State Initial");
-
-        Some(State1::state())
-    }
-
-    fn entry(&mut self) {
-        println!("Top State Entry");
+        State1::state()
     }
 }
 
 struct State1;
 
 impl HsmState<State1> for TestActor {
-    type Parent = AsState<Top>;
+    type Parent = Top;
+
+    fn initial(&mut self) -> Option<State<Self>> {
+        println!("State1 Initial");
+
+        Some(State11::state())
+    }
 
     fn entry(&mut self) {
         println!("State1 Entry");
     }
+}
+
+struct State11;
+
+impl HsmState<State11> for TestActor {
+    type Parent = AsState<State1>;
+
+    fn entry(&mut self) {
+        println!("State11 Entry");
+    }
 
     fn handler(&mut self, _event: &UserEvent) -> Action<Self> {
-        Action::<Self>::Transition(State2::state())
+        Action::<Self>::Transition(State12::state())
     }
 
     fn exit(&mut self) {
-        println!("State1 Exit");
+        println!("State11 Exit");
     }
 }
 
-struct State2;
+struct State12;
 
-impl HsmState<State2> for TestActor {
-    type Parent = AsState<Top>;
+impl HsmState<State12> for TestActor {
+    type Parent = AsState<State1>;
 
     fn entry(&mut self) {
-        println!("State2 Entry");
+        println!("State12 Entry");
     }
 
     fn handler(&mut self, _event: &UserEvent) -> Action<Self> {
-        Action::<Self>::Transition(State1::state())
+        Action::<Self>::Transition(State11::state())
     }
 
     fn exit(&mut self) {
-        println!("State2 Exit");
+        println!("State12 Exit");
     }
 }
 
