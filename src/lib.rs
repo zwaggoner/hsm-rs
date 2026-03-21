@@ -27,7 +27,7 @@ pub enum Action<H: Hsm + 'static> {
 #[doc(hidden)]
 #[derive(Debug)]
 pub struct StateDesc<H: Hsm + 'static> {
-    type_id: core::any::TypeId,
+    id: core::any::TypeId,
     parent: Option<State<H>>,
     initial: fn(&mut H) -> Option<State<H>>,
     entry: fn(&mut H),
@@ -37,7 +37,7 @@ pub struct StateDesc<H: Hsm + 'static> {
 
 impl<H: Hsm> PartialEq for StateDesc<H> {
     fn eq(&self, other: &Self) -> bool {
-        self.type_id == other.type_id
+        self.id == other.id
     }
 }
 
@@ -93,7 +93,7 @@ pub trait RuntimeState<H: Hsm + 'static>: _private::RuntimeStateDesc<H> {
 
 impl<S: 'static, H: HsmState<S> + 'static> _private::RuntimeStateDesc<H> for S {
     const STATE: StateDesc<H> = StateDesc::<H> {
-        type_id: core::any::TypeId::of::<S>(),
+        id: core::any::TypeId::of::<(H, S)>(),
         parent: H::Parent::OPT_STATE,
         initial: <H as HsmState<S>>::initial,
         entry: H::entry,
