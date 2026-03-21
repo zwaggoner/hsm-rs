@@ -22,21 +22,39 @@ pub struct MpmcBoundedQueue<T, const SIZE: usize> {
 
 impl<T, const SIZE: usize> Default for MpmcBoundedQueue<T, SIZE> {
     fn default() -> Self {
-        assert!(SIZE >= 2, "Queue size must be at least two elements");
-        assert!(SIZE.is_power_of_two(), "Queue size must be a power of two");
-        MpmcBoundedQueue::<T, SIZE> {
-            buffer: core::array::from_fn(|i| Slot::<T> {
-                sequence: AtomicUsize::new(i),
-                data: UnsafeCell::new(MaybeUninit::uninit()),
-            }),
-            enqueue_pos: AtomicUsize::new(0),
-            dequeue_pos: AtomicUsize::new(0),
-        }
+        Self::new()
     }
 }
 
 impl<T, const SIZE: usize> MpmcBoundedQueue<T, SIZE> {
     const BUFFER_MASK: usize = SIZE - 1;
+
+    pub const fn new() -> Self {
+        assert!(SIZE >= 2, "Queue size must be at least two elements");
+        assert!(SIZE.is_power_of_two(), "Queue size must be a power of two");
+        MpmcBoundedQueue::<T, SIZE> {
+            buffer: {
+                let mut buf = [
+                    const {
+                        Slot::<T> {
+                            sequence: AtomicUsize::new(0),
+                            data: UnsafeCell::new(MaybeUninit::uninit()),
+                        }
+                    }; SIZE];
+
+                let mut i = 1;
+
+                while i < SIZE {
+                    buf[i].sequence = AtomicUsize::new(i);
+                    i += 1;
+                }
+
+                buf
+            },
+            enqueue_pos: AtomicUsize::new(0),
+            dequeue_pos: AtomicUsize::new(0),
+        }
+    }
 }
 
 impl<T, const SIZE: usize> QueueAdapter<T> for MpmcBoundedQueue<T, SIZE> {
