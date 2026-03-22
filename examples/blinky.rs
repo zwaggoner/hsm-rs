@@ -31,7 +31,7 @@ enum BlinkEvent {
 
 type LedType = gpio::PA5<Output<PushPull>>;
 
-struct Blinky { 
+struct Blinky {
     led: LedType,
     divisor: u32,
 }
@@ -41,10 +41,7 @@ impl Blinky {
     const MAX_DIVISOR: u32 = 4;
 
     fn new(led: LedType) -> Self {
-        Self {
-            led,
-            divisor: 1,
-        }
+        Self { led, divisor: 1 }
     }
 }
 
@@ -54,7 +51,10 @@ impl StateMachineSpec for Blinky {
     fn initial(&mut self) -> State<Self> {
         cortex_m::interrupt::free(|cs| {
             if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
-                shared.blink_timer.start(Self::MAX_UPDATE_RATE.millis()).unwrap();
+                shared
+                    .blink_timer
+                    .start(Self::MAX_UPDATE_RATE.millis())
+                    .unwrap();
                 shared.blink_timer.listen(Event::Update);
             }
         });
@@ -79,7 +79,7 @@ impl StateImpl<BlinkyTop> for Blinky {
                 });
 
                 Action::Handled
-            },
+            }
             BlinkEvent::DebounceTimeout => {
                 let mut button_state = false;
 
@@ -114,7 +114,7 @@ impl StateImpl<BlinkyTop> for Blinky {
                 });
 
                 Action::Handled
-            },
+            }
             _ => Action::Unhandled,
         }
     }
@@ -224,19 +224,17 @@ fn main() -> ! {
             cortex_m::peripheral::NVIC::unmask(button.interrupt());
         }
 
-        let context = Blinky::new(led); 
+        let context = Blinky::new(led);
 
         let (producer, consumer) = MAILBOX.split().unwrap();
 
         cortex_m::interrupt::free(|cs| {
-            SHARED.borrow(cs).replace(Some(
-                    Shared {
-                        producer,
-                        blink_timer,
-                        debounce_timer,
-                        button
-                    }
-            ));
+            SHARED.borrow(cs).replace(Some(Shared {
+                producer,
+                blink_timer,
+                debounce_timer,
+                button,
+            }));
         });
 
         let mut actor = Actor::<Blinky, BlinkEventQueue>::new(context, consumer);
