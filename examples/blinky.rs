@@ -18,8 +18,8 @@ use hal::{
 };
 
 use rsm::{
-    Action, Actor, AsState, EventProducer, Hsm, HsmState, Mailbox, MpmcBoundedQueue, RuntimeState,
-    State, Step, Top,
+    Action, Actor, EventProducer, StateImpl, StateMachineSpec, Mailbox, MpmcBoundedQueue, Parent, StateRef, State, Step,
+    Top,
 };
 
 #[derive(Debug)]
@@ -35,7 +35,7 @@ struct Blinky {
     update_rate: u32,
 }
 
-impl Hsm for Blinky {
+impl StateMachineSpec for Blinky {
     type Event = BlinkEvent;
 
     fn initial(&mut self) -> State<Self> {
@@ -45,7 +45,7 @@ impl Hsm for Blinky {
 
 struct BlinkyTop;
 
-impl HsmState<BlinkyTop> for Blinky {
+impl StateImpl<BlinkyTop> for Blinky {
     type Parent = Top;
 
     fn handler(&mut self, event: &BlinkEvent) -> Action<Self> {
@@ -72,8 +72,8 @@ impl HsmState<BlinkyTop> for Blinky {
 
 struct LedOn;
 
-impl HsmState<LedOn> for Blinky {
-    type Parent = AsState<BlinkyTop>;
+impl StateImpl<LedOn> for Blinky {
+    type Parent = Parent<BlinkyTop>;
 
     fn entry(&mut self) {
         self.led.set_high();
@@ -89,8 +89,8 @@ impl HsmState<LedOn> for Blinky {
 
 struct LedOff;
 
-impl HsmState<LedOff> for Blinky {
-    type Parent = AsState<BlinkyTop>;
+impl StateImpl<LedOff> for Blinky {
+    type Parent = Parent<BlinkyTop>;
 
     fn entry(&mut self) {
         self.led.set_low();
