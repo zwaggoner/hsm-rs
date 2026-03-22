@@ -5,9 +5,49 @@ mod fixed_vec;
 mod mpmc_bounded_queue;
 
 use core::marker::PhantomData;
-pub use event_queue::{EventConsumer, EventProducer, Mailbox, QueueAdapter};
+use core::sync::atomic::{AtomicUsize, Ordering};
+pub use event_queue::{EventConsumer, EventProducer, Mailbox, QueueAdapter, ReadyBit};
 use fixed_vec::FixedVec;
 pub use mpmc_bounded_queue::MpmcBoundedQueue;
+
+/// Shared readiness bitmap used by the cooperative scheduler.
+///
+/// Each actor owns one bit. Producers set that bit after they enqueue an
+/// event so the scheduler can skip mailboxes that are definitely idle.
+pub struct ReadySet<const NUM_ACTORS: usize> {
+    bits: AtomicUsize,
+}
+
+impl<const NUM_ACTORS: usize> ReadySet<NUM_ACTORS> {
+    const MAX_READY_BITS: usize = usize::BITS as usize;
+
+    pub const fn new() -> Self {
+        assert!(NUM_ACTORS <= Self::MAX_READY_BITS);
+
+        Self {
+            bits: AtomicUsize::new(Self::all_ready_mask()),
+        }
+    }
+
+    const fn all_ready_mask() -> usize {
+        if NUM_ACTORS >= usize::BITS as usize {
+            usize::MAX
+        } else {
+            (1usize << NUM_ACTORS) - 1
+        }
+    }
+
+    pub fn bit(&self, actor_index: usize) -> ReadyBit {
+        assert!(actor_index < NUM_ACTORS, "actor index out of range");
+        ReadyBit::new(actor_index, &self.bits)
+    }
+}
+
+impl<const NUM_ACTORS: usize> Default for ReadySet<NUM_ACTORS> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 pub trait StateMachineSpec: Sized {
     type Event: 'static;
@@ -411,8 +451,9 @@ pub struct Superloop<'a, const NUM_ACTORS: usize> {
     inner: ToSchedule<'a, NUM_ACTORS>,
 }
 
-pub struct Cooperative<'a, const NUM_ACTORS: usize> {
+pub struct Cooperative<'a, 'b, const NUM_ACTORS: usize> {
     inner: ToSchedule<'a, NUM_ACTORS>,
+    ready_set: &'b ReadySet<NUM_ACTORS>,
 }
 
 impl<'a, const NUM_ACTORS: usize> Superloop<'a, NUM_ACTORS> {
@@ -439,38 +480,84 @@ impl<'a, const NUM_ACTORS: usize> Runtime for Superloop<'a, NUM_ACTORS> {
     }
 }
 
-impl<'a, const NUM_ACTORS: usize> Cooperative<'a, NUM_ACTORS> {
-    pub fn new(actors: [&'a mut dyn ActorRuntime; NUM_ACTORS], idle_task: Option<fn()>) -> Self {
+impl<'a, 'b, const NUM_ACTORS: usize> Cooperative<'a, 'b, NUM_ACTORS> {
+    pub fn new(
+        ready_set: &'b ReadySet<NUM_ACTORS>,
+        actors: [&'a mut dyn ActorRuntime; NUM_ACTORS],
+        idle_task: Option<fn()>,
+    ) -> Self {
         Self {
             inner: ToSchedule::new(actors, idle_task),
+            ready_set,
         }
+    }
+
+    fn bit_for(index: usize) -> usize {
+        1usize << index
     }
 }
 
-impl<'a, const NUM_ACTORS: usize> Runtime for Cooperative<'a, NUM_ACTORS> {
+impl<'a, 'b, const NUM_ACTORS: usize> Runtime for Cooperative<'a, 'b, NUM_ACTORS> {
     fn run(&mut self) -> ! {
-        // For cooperative scheduler since runtime isn't guaranteed, initialize first
-        for a in &mut self.inner.actors {
-            if !a.initialized() {
-                let _ = a.step();
-            }
-        }
-
         loop {
-            let mut ran: bool = false;
+            let ready_mask = self.ready_set.bits.load(Ordering::Acquire);
 
-            for a in &mut self.inner.actors {
-                // If someone did work, reassess scheduling
-                if a.step().did_work() {
+            if ready_mask == 0 {
+                (self.inner.idle_task)();
+                continue;
+            }
+
+            let mut ran = false;
+
+            for actor_index in 0..NUM_ACTORS {
+                let actor_bit = Self::bit_for(actor_index);
+
+                if ready_mask & actor_bit == 0 {
+                    continue;
+                }
+
+                let status = self.inner.actors[actor_index].step();
+
+                if status.did_work() {
+                    ran = true;
+
+                    if !status.is_pending() {
+                        self.ready_set.bits.fetch_and(!actor_bit, Ordering::AcqRel);
+                    }
+
+                    break;
+                }
+
+                // Clear the bit once we observed the actor idle. If a producer
+                // raced with that observation and set the bit just before this
+                // fetch_and, the second step below closes the lost-wakeup window
+                // by checking the mailbox one more time and restoring the bit if
+                // work was already present.
+                self.ready_set.bits.fetch_and(!actor_bit, Ordering::AcqRel);
+
+                if self.inner.actors[actor_index].step().did_work() {
+                    self.ready_set.bits.fetch_or(actor_bit, Ordering::Release);
                     ran = true;
                     break;
                 }
             }
 
-            // Only perform idle task if there was an iteration where nobody did work
             if !ran {
                 (self.inner.idle_task)();
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod cooperative_tests {
+    use super::*;
+    use core::sync::atomic::Ordering;
+
+    #[test]
+    fn ready_set_starts_with_all_actors_marked_ready() {
+        let ready = ReadySet::<3>::new();
+
+        assert_eq!(ready.bits.load(Ordering::Acquire), 0b111);
     }
 }
