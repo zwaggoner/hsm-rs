@@ -220,7 +220,7 @@ fn main() -> ! {
         let gpioc = dp.GPIOC.split(&mut rcc);
         let mut button = gpioc.pc13;
 
-        // Get syscfg HAL 
+        // Get syscfg HAL
         let mut syscfg = dp.SYSCFG.constrain(&mut rcc);
 
         // Configure button inputs/events
@@ -264,7 +264,7 @@ fn main() -> ! {
         // Actor event loop
         loop {
             while actor.step() {}
-            
+
             // All of our events come from interrupt context, so wfi (wait for interrupt) is a good
             // idle task when we don't have any work left to do
             cortex_m::asm::wfi();
