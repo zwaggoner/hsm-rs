@@ -370,7 +370,7 @@ impl<'a, const NUM_ACTORS: usize> Runtime for Superloop<'a, NUM_ACTORS> {
             let mut ran: bool = false;
 
             for a in &mut self.actors {
-                ran &= a.step();
+                ran |= a.step();
             }
 
             if !ran {
