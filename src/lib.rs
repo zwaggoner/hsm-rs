@@ -334,3 +334,45 @@ impl<'a, Sm: StateMachineSpec, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH:
         false
     }
 }
+
+pub trait Runtime {
+    fn run(&mut self) -> !; 
+}
+
+pub struct Scheduler { }
+
+pub struct Superloop<'a, const NUM_ACTORS: usize> {
+    actors: [&'a mut dyn Step; NUM_ACTORS],
+    idle_task: fn()
+}
+
+impl Scheduler {
+    pub fn superloop<'a, const NUM_ACTORS: usize>(actors: [&'a mut dyn Step; NUM_ACTORS], idle_task: Option<fn()>) -> Superloop<'a, NUM_ACTORS> {
+        Superloop {
+            actors,
+            idle_task: {
+                if let Some(idle_task) = idle_task {
+                    idle_task
+                } else {
+                    || {}
+                }
+            }
+        }
+    }
+}
+
+impl<'a, const NUM_ACTORS: usize> Runtime for Superloop<'a, NUM_ACTORS> {
+    fn run(&mut self) -> ! {
+        loop {
+            let mut ran: bool = false;
+
+            for a in &mut self.actors {
+                ran &= a.step();
+            }
+
+            if !ran {
+                (self.idle_task)();
+            }
+        }
+    }
+}

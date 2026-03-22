@@ -18,8 +18,8 @@ use hal::{
 };
 
 use rsm::{
-    Action, Actor, EventProducer, Mailbox, MpmcBoundedQueue, Parent, Root, State, 
-    StateImpl, StateMachineSpec, StateRef, Step,
+    Action, Actor, EventProducer, Mailbox, MpmcBoundedQueue, Parent, Root, Runtime, 
+    Scheduler, State, StateImpl, StateMachineSpec, StateRef,
 };
 
 #[derive(Debug)]
@@ -261,14 +261,7 @@ fn main() -> ! {
         // Configure the blinky actor with the context object and consumer
         let mut actor = Actor::<Blinky, BlinkEventQueue>::new(context, consumer);
 
-        // Actor event loop
-        loop {
-            while actor.step() {}
-
-            // All of our events come from interrupt context, so wfi (wait for interrupt) is a good
-            // idle task when we don't have any work left to do
-            cortex_m::asm::wfi();
-        }
+        Scheduler::superloop([&mut actor], Some(|| { cortex_m::asm::wfi(); })).run();
     }
 
     loop {}

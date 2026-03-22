@@ -1,8 +1,8 @@
 extern crate rsm;
 
 use rsm::{
-    Action, Actor, Mailbox, MpmcBoundedQueue, Parent, Root, State, StateImpl, StateMachineSpec, 
-    StateRef, Step,
+    Action, Actor, Mailbox, MpmcBoundedQueue, Parent, Root, State, 
+    StateImpl, StateMachineSpec, StateRef, Step
 };
 
 #[derive(Debug)]
@@ -100,6 +100,7 @@ fn main() {
     producer.enqueue(UserEvent::TestEvent).unwrap();
     producer.enqueue(UserEvent::TestEvent).unwrap();
     producer.enqueue(UserEvent::TestEvent).unwrap();
+
 
     while actor.step() {}
 }
