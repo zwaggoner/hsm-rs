@@ -9,51 +9,51 @@ pub use event_queue::{EventConsumer, EventProducer, Mailbox, QueueAdapter};
 use fixed_vec::FixedVec;
 pub use mpmc_bounded_queue::MpmcBoundedQueue;
 
-pub trait Hsm: Sized {
+pub trait StateMachineSpec: Sized {
     type Event: 'static;
 
     fn initial(&mut self) -> State<Self>;
 }
 
-pub type State<H> = &'static StateDesc<H>;
+pub type State<Sm> = &'static StateDesc<Sm>;
 
-pub enum Action<H: Hsm + 'static> {
+pub enum Action<Sm: StateMachineSpec + 'static> {
     Unhandled,
     Handled,
-    Transition(State<H>),
+    Transition(State<Sm>),
 }
 
 #[doc(hidden)]
 #[derive(Debug)]
-pub struct StateDesc<H: Hsm + 'static> {
+pub struct StateDesc<Sm: StateMachineSpec + 'static> {
     id: core::any::TypeId,
-    parent: Option<State<H>>,
-    initial: fn(&mut H) -> Option<State<H>>,
-    entry: fn(&mut H),
-    handler: fn(&mut H, &H::Event) -> Action<H>,
-    exit: fn(&mut H),
+    parent: Option<State<Sm>>,
+    initial: fn(&mut Sm) -> Option<State<Sm>>,
+    entry: fn(&mut Sm),
+    handler: fn(&mut Sm, &Sm::Event) -> Action<Sm>,
+    exit: fn(&mut Sm),
 }
 
-impl<H: Hsm> PartialEq for StateDesc<H> {
+impl<Sm: StateMachineSpec> PartialEq for StateDesc<Sm> {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
     }
 }
 
 mod _private {
-    use super::{Hsm, StateDesc};
+    use super::{StateMachineSpec, StateDesc};
 
     pub trait Sealed {}
-    pub trait RuntimeStateDesc<H: Hsm + 'static> {
-        const STATE: StateDesc<H>;
+    pub trait StaticStateDesc<Sm: StateMachineSpec + 'static> {
+        const STATE: StateDesc<Sm>;
     }
 }
 
-pub trait HsmState<S>: Hsm + Sized
+pub trait StateImpl<S>: StateMachineSpec + Sized
 where
     Self: 'static,
 {
-    type Parent: MaybeState<Self>;
+    type Parent: ParentState<Self>;
 
     fn initial(&mut self) -> Option<State<Self>> {
         None
@@ -68,41 +68,41 @@ where
     fn exit(&mut self) {}
 }
 
-pub trait MaybeState<H: Hsm + 'static>: _private::Sealed {
-    const OPT_STATE: Option<State<H>>;
+pub trait ParentState<Sm: StateMachineSpec + 'static>: _private::Sealed {
+    const OPT_STATE: Option<State<Sm>>;
 }
 
-pub struct AsState<S>(PhantomData<S>);
+pub struct Parent<S>(PhantomData<S>);
 pub struct Top;
 
-impl<S> _private::Sealed for AsState<S> {}
+impl<S> _private::Sealed for Parent<S> {}
 impl _private::Sealed for Top {}
 
-impl<H: Hsm + 'static, S: 'static + _private::RuntimeStateDesc<H>> MaybeState<H> for AsState<S> {
-    const OPT_STATE: Option<State<H>> = Some(&S::STATE);
+impl<Sm: StateMachineSpec + 'static, S: 'static + _private::StaticStateDesc<Sm>> ParentState<Sm> for Parent<S> {
+    const OPT_STATE: Option<State<Sm>> = Some(&S::STATE);
 }
 
-impl<H: Hsm + 'static> MaybeState<H> for Top {
-    const OPT_STATE: Option<State<H>> = None;
+impl<Sm: StateMachineSpec + 'static> ParentState<Sm> for Top {
+    const OPT_STATE: Option<State<Sm>> = None;
 }
 
-pub trait RuntimeState<H: Hsm + 'static>: _private::RuntimeStateDesc<H> {
-    fn state() -> State<H>;
+pub trait StateRef<Sm: StateMachineSpec + 'static>: _private::StaticStateDesc<Sm> {
+    fn state() -> State<Sm>;
 }
 
-impl<S: 'static, H: HsmState<S> + 'static> _private::RuntimeStateDesc<H> for S {
-    const STATE: StateDesc<H> = StateDesc::<H> {
-        id: core::any::TypeId::of::<(H, S)>(),
-        parent: H::Parent::OPT_STATE,
-        initial: <H as HsmState<S>>::initial,
-        entry: H::entry,
-        handler: H::handler,
-        exit: H::exit,
+impl<S: 'static, Sm: StateImpl<S> + 'static> _private::StaticStateDesc<Sm> for S {
+    const STATE: StateDesc<Sm> = StateDesc::<Sm> {
+        id: core::any::TypeId::of::<(Sm, S)>(),
+        parent: Sm::Parent::OPT_STATE,
+        initial: <Sm as StateImpl<S>>::initial,
+        entry: Sm::entry,
+        handler: Sm::handler,
+        exit: Sm::exit,
     };
 }
 
-impl<S: 'static + _private::RuntimeStateDesc<H>, H: Hsm + 'static> RuntimeState<H> for S {
-    fn state() -> State<H> {
+impl<S: 'static + _private::StaticStateDesc<Sm>, Sm: StateMachineSpec + 'static> StateRef<Sm> for S {
+    fn state() -> State<Sm> {
         &Self::STATE
     }
 }
@@ -119,15 +119,15 @@ pub struct Run {}
 impl _private::Sealed for Run {}
 impl RunState for Run {}
 
-pub struct StateMachine<H: Hsm + 'static, const MAX_NEST_DEPTH: usize = 8, S: RunState = Init> {
-    path: FixedVec<State<H>, MAX_NEST_DEPTH>,
+pub struct StateMachine<Sm: StateMachineSpec + 'static, const MAX_NEST_DEPTH: usize = 8, S: RunState = Init> {
+    path: FixedVec<State<Sm>, MAX_NEST_DEPTH>,
     _pd: PhantomData<S>,
 }
 
-impl<H: Hsm, const MAX_NEST_DEPTH: usize, S: RunState> StateMachine<H, MAX_NEST_DEPTH, S> {
-    fn get_path(state: State<H>) -> FixedVec<State<H>, MAX_NEST_DEPTH> {
+impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize, S: RunState> StateMachine<Sm, MAX_NEST_DEPTH, S> {
+    fn get_path(state: State<Sm>) -> FixedVec<State<Sm>, MAX_NEST_DEPTH> {
         let mut curr_state = state;
-        let mut path: FixedVec<State<H>, MAX_NEST_DEPTH> = FixedVec::new();
+        let mut path: FixedVec<State<Sm>, MAX_NEST_DEPTH> = FixedVec::new();
         let mut excess_depth = 0;
 
         path.push(state)
@@ -156,7 +156,7 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize, S: RunState> StateMachine<H, MAX_NEST_
         path
     }
 
-    fn find_lca(&self, target_path: &FixedVec<State<H>, MAX_NEST_DEPTH>) -> Option<usize> {
+    fn find_lca(&self, target_path: &FixedVec<State<Sm>, MAX_NEST_DEPTH>) -> Option<usize> {
         let max_search_depth = core::cmp::min(self.path.len(), target_path.len());
 
         // If the max depth of either tree is 0, there's no LCA
@@ -182,7 +182,7 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize, S: RunState> StateMachine<H, MAX_NEST_
         Some(last_common_ancestor)
     }
 
-    fn transition(&mut self, context: &mut H, target: State<H>) {
+    fn transition(&mut self, context: &mut Sm, target: State<Sm>) {
         let mut transition_target = Some(target);
 
         while let Some(state) = transition_target {
@@ -209,7 +209,7 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize, S: RunState> StateMachine<H, MAX_NEST_
         }
     }
 
-    fn enter(&mut self, context: &mut H, target_path: &[State<H>]) {
+    fn enter(&mut self, context: &mut Sm, target_path: &[State<Sm>]) {
         for state in target_path {
             self.path
                 .push(state)
@@ -218,7 +218,7 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize, S: RunState> StateMachine<H, MAX_NEST_
         }
     }
 
-    fn exit_to(&mut self, context: &mut H, end: usize) {
+    fn exit_to(&mut self, context: &mut Sm, end: usize) {
         while self.path.len() > end {
             if let Some(state) = self.path.pop() {
                 (state.exit)(context);
@@ -227,37 +227,37 @@ impl<H: Hsm, const MAX_NEST_DEPTH: usize, S: RunState> StateMachine<H, MAX_NEST_
     }
 }
 
-impl<H: Hsm, const MAX_NEST_DEPTH: usize> Default for StateMachine<H, MAX_NEST_DEPTH, Init> {
+impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize> Default for StateMachine<Sm, MAX_NEST_DEPTH, Init> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH, Init> {
+impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize> StateMachine<Sm, MAX_NEST_DEPTH, Init> {
     pub fn new() -> Self {
         Self {
-            path: FixedVec::<State<H>, MAX_NEST_DEPTH>::new(),
+            path: FixedVec::<State<Sm>, MAX_NEST_DEPTH>::new(),
             _pd: PhantomData::<Init>,
         }
     }
 
-    pub fn initial(mut self, context: &mut H) -> StateMachine<H, MAX_NEST_DEPTH, Run> {
-        let target = <H as Hsm>::initial(context);
+    pub fn initial(mut self, context: &mut Sm) -> StateMachine<Sm, MAX_NEST_DEPTH, Run> {
+        let target = <Sm as StateMachineSpec>::initial(context);
         self.transition(context, target);
 
-        StateMachine::<H, MAX_NEST_DEPTH, Run> {
+        StateMachine::<Sm, MAX_NEST_DEPTH, Run> {
             path: self.path,
             _pd: PhantomData::<Run>,
         }
     }
 }
 
-impl<H: Hsm, const MAX_NEST_DEPTH: usize> StateMachine<H, MAX_NEST_DEPTH, Run> {
-    pub fn dispatch(&mut self, context: &mut H, event: &H::Event) {
+impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize> StateMachine<Sm, MAX_NEST_DEPTH, Run> {
+    pub fn dispatch(&mut self, context: &mut Sm, event: &Sm::Event) {
         for state in self.path.iter().rev() {
             match (state.handler)(context, event) {
-                Action::<H>::Handled => break,
-                Action::<H>::Transition(new_state) => {
+                Action::<Sm>::Handled => break,
+                Action::<Sm>::Transition(new_state) => {
                     self.transition(context, new_state);
                     break;
                 }
@@ -271,27 +271,27 @@ pub trait Step {
     fn step(&mut self) -> bool;
 }
 
-enum CurrSM<H: Hsm + 'static, const MAX_NEST_DEPTH: usize> {
-    Init(StateMachine<H, MAX_NEST_DEPTH, Init>),
-    Run(StateMachine<H, MAX_NEST_DEPTH, Run>),
+enum CurrSM<Sm: StateMachineSpec + 'static, const MAX_NEST_DEPTH: usize> {
+    Init(StateMachine<Sm, MAX_NEST_DEPTH, Init>),
+    Run(StateMachine<Sm, MAX_NEST_DEPTH, Run>),
 }
 
-impl<H: Hsm, const MAX_NEST_DEPTH: usize> Default for CurrSM<H, MAX_NEST_DEPTH> {
+impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize> Default for CurrSM<Sm, MAX_NEST_DEPTH> {
     fn default() -> Self {
-        CurrSM::Init(StateMachine::<H, MAX_NEST_DEPTH>::default())
+        CurrSM::Init(StateMachine::<Sm, MAX_NEST_DEPTH>::default())
     }
 }
 
-pub struct Actor<'a, H: Hsm + 'static, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize = 8> {
-    context: H,
-    sm: CurrSM<H, MAX_NEST_DEPTH>,
-    event_consumer: EventConsumer<'a, H::Event, Q>,
+pub struct Actor<'a, Sm: StateMachineSpec + 'static, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usize = 8> {
+    context: Sm,
+    sm: CurrSM<Sm, MAX_NEST_DEPTH>,
+    event_consumer: EventConsumer<'a, Sm::Event, Q>,
 }
 
-impl<'a, H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize>
-    Actor<'a, H, Q, MAX_NEST_DEPTH>
+impl<'a, Sm: StateMachineSpec, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usize>
+    Actor<'a, Sm, Q, MAX_NEST_DEPTH>
 {
-    pub fn new(context: H, event_consumer: EventConsumer<'a, H::Event, Q>) -> Self {
+    pub fn new(context: Sm, event_consumer: EventConsumer<'a, Sm::Event, Q>) -> Self {
         Self {
             context,
             sm: CurrSM::default(),
@@ -300,8 +300,8 @@ impl<'a, H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize>
     }
 }
 
-impl<'a, H: Hsm, Q: QueueAdapter<H::Event>, const MAX_NEST_DEPTH: usize> Step
-    for Actor<'a, H, Q, MAX_NEST_DEPTH>
+impl<'a, Sm: StateMachineSpec, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usize> Step
+    for Actor<'a, Sm, Q, MAX_NEST_DEPTH>
 {
     fn step(&mut self) -> bool {
         if let CurrSM::Run(sm) = &mut self.sm {
