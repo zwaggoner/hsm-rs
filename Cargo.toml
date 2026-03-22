@@ -11,15 +11,14 @@ blinky-example = [
     "dep:panic-halt",
     "dep:stm32f4xx-hal",
 ]
+loom-tests = ["dep:loom"]
 
 [dependencies]
 cortex-m = { version = "0.7", optional = true }
 cortex-m-rt = { version = "0.7", optional = true }
 panic-halt = { version = "1", optional = true }
 stm32f4xx-hal = { version = "0.23", optional = true, features = ["stm32f446"] }
-
-[dev-dependencies]
-loom = "0.7.2"
+loom = { version = "0.7.1", optional = true }
 
 [[example]]
 name = "sm-example"

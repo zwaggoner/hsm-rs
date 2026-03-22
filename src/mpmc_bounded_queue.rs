@@ -3,10 +3,10 @@ use core::mem::MaybeUninit;
 
 use crate::event_queue::{MultiProducer, QueueAdapter};
 
-#[cfg(not(test))]
+#[cfg(not(all(test, feature = "loom-tests")))]
 use core::sync::atomic::{AtomicUsize, Ordering};
 
-#[cfg(test)]
+#[cfg(all(test, feature = "loom-tests"))]
 use loom::sync::atomic::{AtomicUsize, Ordering};
 
 struct Slot<T> {
@@ -29,6 +29,7 @@ impl<T, const SIZE: usize> Default for MpmcBoundedQueue<T, SIZE> {
 impl<T, const SIZE: usize> MpmcBoundedQueue<T, SIZE> {
     const BUFFER_MASK: usize = SIZE - 1;
 
+    #[cfg(not(all(test, feature = "loom-tests")))]
     pub const fn new() -> Self {
         assert!(SIZE >= 2, "Queue size must be at least two elements");
         assert!(SIZE.is_power_of_two(), "Queue size must be a power of two");
@@ -54,6 +55,23 @@ impl<T, const SIZE: usize> MpmcBoundedQueue<T, SIZE> {
             enqueue_pos: AtomicUsize::new(0),
             dequeue_pos: AtomicUsize::new(0),
         }
+    }
+
+    #[cfg(all(test, feature = "loom-tests"))]
+    pub fn new() -> Self {{
+        assert!(SIZE >= 2, "Queue size must be at least two elements");
+        assert!(SIZE.is_power_of_two(), "Queue size must be a power of two");
+        MpmcBoundedQueue::<T, SIZE> {
+            buffer: core::array::from_fn(|i| {
+                Slot::<T> {
+                    sequence: AtomicUsize::new(i),
+                    data: UnsafeCell::new(MaybeUninit::uninit()),
+                }
+            }),
+            enqueue_pos: AtomicUsize::new(0),
+            dequeue_pos: AtomicUsize::new(0),
+        }
+    }
     }
 }
 
@@ -135,7 +153,7 @@ impl<T, const N: usize> MultiProducer for MpmcBoundedQueue<T, N> {}
 unsafe impl<T: Send, const N: usize> Send for MpmcBoundedQueue<T, N> {}
 unsafe impl<T: Send, const N: usize> Sync for MpmcBoundedQueue<T, N> {}
 
-#[cfg(test)]
+#[cfg(all(test, feature = "loom-tests"))]
 mod tests {
     use super::MpmcBoundedQueue;
     use crate::event_queue::QueueAdapter;
