@@ -108,6 +108,7 @@ impl StateImpl<BlinkyTop> for Blinky {
                 cortex_m::interrupt::free(|cs| {
                     if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
                         unsafe {
+                            shared.button.clear_interrupt_pending_bit();
                             cortex_m::peripheral::NVIC::unmask(shared.button.interrupt());
                         }
                     }
