@@ -62,7 +62,7 @@ where
     fn entry(&mut self) {}
 
     fn handler(&mut self, _event: &Self::Event) -> Action<Self> {
-        Action::<Self>::Unhandled
+        Action::Unhandled
     }
 
     fn exit(&mut self) {}

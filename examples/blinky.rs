@@ -78,7 +78,7 @@ impl StateImpl<BlinkyTop> for Blinky {
                     }
                 });
 
-                Action::<Self>::Handled
+                Action::Handled
             },
             BlinkEvent::DebounceTimeout => {
                 let mut button_state = false;
@@ -105,9 +105,17 @@ impl StateImpl<BlinkyTop> for Blinky {
                     });
                 }
 
-                Action::<Self>::Handled
+                cortex_m::interrupt::free(|cs| {
+                    if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
+                        unsafe {
+                            cortex_m::peripheral::NVIC::unmask(shared.button.interrupt());
+                        }
+                    }
+                });
+
+                Action::Handled
             },
-            _ => Action::<Self>::Unhandled,
+            _ => Action::Unhandled,
         }
     }
 }
@@ -123,8 +131,8 @@ impl StateImpl<LedOn> for Blinky {
 
     fn handler(&mut self, event: &BlinkEvent) -> Action<Self> {
         match event {
-            BlinkEvent::Timeout => Action::<Self>::Transition(LedOff::state()),
-            _ => Action::<Self>::Unhandled,
+            BlinkEvent::Timeout => Action::Transition(LedOff::state()),
+            _ => Action::Unhandled,
         }
     }
 }
@@ -140,8 +148,8 @@ impl StateImpl<LedOff> for Blinky {
 
     fn handler(&mut self, event: &BlinkEvent) -> Action<Self> {
         match event {
-            BlinkEvent::Timeout => Action::<Self>::Transition(LedOn::state()),
-            _ => Action::<Self>::Unhandled,
+            BlinkEvent::Timeout => Action::Transition(LedOn::state()),
+            _ => Action::Unhandled,
         }
     }
 }
@@ -185,6 +193,7 @@ fn EXTI15_10() {
     cortex_m::interrupt::free(|cs| {
         if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
             let _ = shared.producer.enqueue(BlinkEvent::ButtonPress);
+            cortex_m::peripheral::NVIC::mask(shared.button.interrupt());
             shared.button.clear_interrupt_pending_bit();
         }
     });
