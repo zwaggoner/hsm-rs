@@ -18,8 +18,8 @@ use hal::{
 };
 
 use rsm::{
-    Action, Actor, EventProducer, Mailbox, MpmcBoundedQueue, Parent, Root, Runtime, Superloop,
-    State, StateImpl, StateMachineSpec, StateRef,
+    Action, Actor, EventProducer, Mailbox, MpmcBoundedQueue, Parent, Root, Runtime, State,
+    StateImpl, StateMachineSpec, StateRef, Superloop,
 };
 
 #[derive(Debug)]
@@ -266,9 +266,9 @@ fn main() -> ! {
             Some(|| {
                 cortex_m::asm::wfi();
             }),
-        ).run();
+        )
+        .run();
     }
 
     loop {}
 }
-

@@ -323,8 +323,8 @@ impl<'a, Sm: StateMachineSpec, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH:
 }
 
 pub enum StepStatus {
-    Initialized{ pending: bool}, 
-    Ran{ pending: bool},
+    Initialized { pending: bool },
+    Ran { pending: bool },
     Idle,
 }
 
@@ -336,7 +336,7 @@ impl StepStatus {
     pub fn is_pending(&self) -> bool {
         match self {
             StepStatus::Initialized { pending } | StepStatus::Ran { pending } => *pending,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -354,20 +354,19 @@ impl<'a, Sm: StateMachineSpec, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH:
         if let CurrSM::Run(sm) = &mut self.sm {
             if let Some(event) = self.next_event.take() {
                 sm.dispatch(&mut self.context, &event);
-                step_status = StepStatus::Ran{ pending: false };
-            }
-            else if let Some(event) = self.event_consumer.dequeue() {
+                step_status = StepStatus::Ran { pending: false };
+            } else if let Some(event) = self.event_consumer.dequeue() {
                 sm.dispatch(&mut self.context, &event);
-                step_status = StepStatus::Ran{ pending: false };
+                step_status = StepStatus::Ran { pending: false };
             }
         } else if let CurrSM::Init(sm) = core::mem::take(&mut self.sm) {
             self.sm = CurrSM::Run(sm.initial(&mut self.context));
-            step_status = StepStatus::Initialized{ pending: false };
+            step_status = StepStatus::Initialized { pending: false };
             self.initialized = true;
         }
-        
+
         match &mut step_status {
-            StepStatus::Ran{ pending } | StepStatus::Initialized{ pending } => {
+            StepStatus::Ran { pending } | StepStatus::Initialized { pending } => {
                 if let Some(next_event) = self.event_consumer.dequeue() {
                     self.next_event = Some(next_event);
                     *pending = true;
@@ -413,10 +412,7 @@ pub struct Cooperative<'a, const NUM_ACTORS: usize> {
 }
 
 impl<'a, const NUM_ACTORS: usize> Superloop<'a, NUM_ACTORS> {
-    pub fn new(
-        actors: [&'a mut dyn ActorRuntime; NUM_ACTORS],
-        idle_task: Option<fn()>,
-    ) -> Self {
+    pub fn new(actors: [&'a mut dyn ActorRuntime; NUM_ACTORS], idle_task: Option<fn()>) -> Self {
         Self {
             inner: ToSchedule::new(actors, idle_task),
         }
@@ -440,10 +436,7 @@ impl<'a, const NUM_ACTORS: usize> Runtime for Superloop<'a, NUM_ACTORS> {
 }
 
 impl<'a, const NUM_ACTORS: usize> Cooperative<'a, NUM_ACTORS> {
-    pub fn new(
-        actors: [&'a mut dyn ActorRuntime; NUM_ACTORS],
-        idle_task: Option<fn()>,
-    ) -> Self {
+    pub fn new(actors: [&'a mut dyn ActorRuntime; NUM_ACTORS], idle_task: Option<fn()>) -> Self {
         Self {
             inner: ToSchedule::new(actors, idle_task),
         }
