@@ -339,6 +339,10 @@ impl StepStatus {
             _ => false,
         }
     }
+
+    pub fn did_work(&self) -> bool {
+        !self.is_idle()
+    }
 }
 
 impl<'a, Sm: StateMachineSpec, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usize> ActorRuntime
@@ -425,7 +429,7 @@ impl<'a, const NUM_ACTORS: usize> Runtime for Superloop<'a, NUM_ACTORS> {
             let mut ran: bool = false;
 
             for a in &mut self.inner.actors {
-                ran |= !a.step().is_idle();
+                ran |= a.step().did_work();
             }
 
             if !ran {
@@ -445,6 +449,7 @@ impl<'a, const NUM_ACTORS: usize> Cooperative<'a, NUM_ACTORS> {
 
 impl<'a, const NUM_ACTORS: usize> Runtime for Cooperative<'a, NUM_ACTORS> {
     fn run(&mut self) -> ! {
+        // For cooperative scheduler since runtime isn't guaranteed, initialize first
         for a in &mut self.inner.actors {
             if !a.initialized() {
                 let _ = a.step();
@@ -455,12 +460,14 @@ impl<'a, const NUM_ACTORS: usize> Runtime for Cooperative<'a, NUM_ACTORS> {
             let mut ran: bool = false;
 
             for a in &mut self.inner.actors {
-                if !a.step().is_idle() {
+                // If someone did work, reassess scheduling
+                if a.step().did_work() {
                     ran = true;
                     break;
                 }
             }
 
+            // Only perform idle task if there was an iteration where nobody did work
             if !ran {
                 (self.inner.idle_task)();
             }
