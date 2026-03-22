@@ -35,13 +35,12 @@ impl<T, const SIZE: usize> MpmcBoundedQueue<T, SIZE> {
         assert!(SIZE.is_power_of_two(), "Queue size must be a power of two");
         MpmcBoundedQueue::<T, SIZE> {
             buffer: {
-                let mut buf = [
-                    const {
-                        Slot::<T> {
-                            sequence: AtomicUsize::new(0),
-                            data: UnsafeCell::new(MaybeUninit::uninit()),
-                        }
-                    }; SIZE];
+                let mut buf = [const {
+                    Slot::<T> {
+                        sequence: AtomicUsize::new(0),
+                        data: UnsafeCell::new(MaybeUninit::uninit()),
+                    }
+                }; SIZE];
 
                 let mut i = 1;
 
@@ -58,20 +57,19 @@ impl<T, const SIZE: usize> MpmcBoundedQueue<T, SIZE> {
     }
 
     #[cfg(all(test, feature = "loom-tests"))]
-    pub fn new() -> Self {{
-        assert!(SIZE >= 2, "Queue size must be at least two elements");
-        assert!(SIZE.is_power_of_two(), "Queue size must be a power of two");
-        MpmcBoundedQueue::<T, SIZE> {
-            buffer: core::array::from_fn(|i| {
-                Slot::<T> {
+    pub fn new() -> Self {
+        {
+            assert!(SIZE >= 2, "Queue size must be at least two elements");
+            assert!(SIZE.is_power_of_two(), "Queue size must be a power of two");
+            MpmcBoundedQueue::<T, SIZE> {
+                buffer: core::array::from_fn(|i| Slot::<T> {
                     sequence: AtomicUsize::new(i),
                     data: UnsafeCell::new(MaybeUninit::uninit()),
-                }
-            }),
-            enqueue_pos: AtomicUsize::new(0),
-            dequeue_pos: AtomicUsize::new(0),
+                }),
+                enqueue_pos: AtomicUsize::new(0),
+                dequeue_pos: AtomicUsize::new(0),
+            }
         }
-    }
     }
 }
 

@@ -18,8 +18,8 @@ use hal::{
 };
 
 use rsm::{
-    Action, Actor, EventProducer, StateImpl, StateMachineSpec, Mailbox, MpmcBoundedQueue, Parent, StateRef, State, Step,
-    Top,
+    Action, Actor, EventProducer, Mailbox, MpmcBoundedQueue, Parent, State, StateImpl,
+    StateMachineSpec, StateRef, Step, Top,
 };
 
 #[derive(Debug)]

@@ -41,7 +41,7 @@ impl<Sm: StateMachineSpec> PartialEq for StateDesc<Sm> {
 }
 
 mod _private {
-    use super::{StateMachineSpec, StateDesc};
+    use super::{StateDesc, StateMachineSpec};
 
     pub trait Sealed {}
     pub trait StaticStateDesc<Sm: StateMachineSpec + 'static> {
@@ -78,7 +78,9 @@ pub struct Top;
 impl<S> _private::Sealed for Parent<S> {}
 impl _private::Sealed for Top {}
 
-impl<Sm: StateMachineSpec + 'static, S: 'static + _private::StaticStateDesc<Sm>> ParentState<Sm> for Parent<S> {
+impl<Sm: StateMachineSpec + 'static, S: 'static + _private::StaticStateDesc<Sm>> ParentState<Sm>
+    for Parent<S>
+{
     const OPT_STATE: Option<State<Sm>> = Some(&S::STATE);
 }
 
@@ -101,7 +103,9 @@ impl<S: 'static, Sm: StateImpl<S> + 'static> _private::StaticStateDesc<Sm> for S
     };
 }
 
-impl<S: 'static + _private::StaticStateDesc<Sm>, Sm: StateMachineSpec + 'static> StateRef<Sm> for S {
+impl<S: 'static + _private::StaticStateDesc<Sm>, Sm: StateMachineSpec + 'static> StateRef<Sm>
+    for S
+{
     fn state() -> State<Sm> {
         &Self::STATE
     }
@@ -119,12 +123,18 @@ pub struct Run {}
 impl _private::Sealed for Run {}
 impl RunState for Run {}
 
-pub struct StateMachine<Sm: StateMachineSpec + 'static, const MAX_NEST_DEPTH: usize = 8, S: RunState = Init> {
+pub struct StateMachine<
+    Sm: StateMachineSpec + 'static,
+    const MAX_NEST_DEPTH: usize = 8,
+    S: RunState = Init,
+> {
     path: FixedVec<State<Sm>, MAX_NEST_DEPTH>,
     _pd: PhantomData<S>,
 }
 
-impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize, S: RunState> StateMachine<Sm, MAX_NEST_DEPTH, S> {
+impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize, S: RunState>
+    StateMachine<Sm, MAX_NEST_DEPTH, S>
+{
     fn get_path(state: State<Sm>) -> FixedVec<State<Sm>, MAX_NEST_DEPTH> {
         let mut curr_state = state;
         let mut path: FixedVec<State<Sm>, MAX_NEST_DEPTH> = FixedVec::new();
@@ -227,7 +237,9 @@ impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize, S: RunState> StateMachin
     }
 }
 
-impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize> Default for StateMachine<Sm, MAX_NEST_DEPTH, Init> {
+impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize> Default
+    for StateMachine<Sm, MAX_NEST_DEPTH, Init>
+{
     fn default() -> Self {
         Self::new()
     }
@@ -282,7 +294,12 @@ impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize> Default for CurrSM<Sm, M
     }
 }
 
-pub struct Actor<'a, Sm: StateMachineSpec + 'static, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usize = 8> {
+pub struct Actor<
+    'a,
+    Sm: StateMachineSpec + 'static,
+    Q: QueueAdapter<Sm::Event>,
+    const MAX_NEST_DEPTH: usize = 8,
+> {
     context: Sm,
     sm: CurrSM<Sm, MAX_NEST_DEPTH>,
     event_consumer: EventConsumer<'a, Sm::Event, Q>,
