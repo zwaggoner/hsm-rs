@@ -18,8 +18,8 @@ use hal::{
 };
 
 use rsm::{
-    Action, Actor, EventProducer, Mailbox, MpmcBoundedQueue, Parent, State, StateImpl,
-    StateMachineSpec, StateRef, Step, Top,
+    Action, Actor, EventProducer, Mailbox, MpmcBoundedQueue, Parent, Root, State, 
+    StateImpl, StateMachineSpec, StateRef, Step,
 };
 
 #[derive(Debug)]
@@ -99,7 +99,7 @@ impl StateMachineSpec for Blinky {
 struct BlinkyTop;
 
 impl StateImpl<BlinkyTop> for Blinky {
-    type Parent = Top;
+    type Parent = Root;
 
     fn handler(&mut self, event: &BlinkEvent) -> Action<Self> {
         match event {

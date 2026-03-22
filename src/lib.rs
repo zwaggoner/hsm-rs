@@ -73,10 +73,10 @@ pub trait ParentState<Sm: StateMachineSpec + 'static>: _private::Sealed {
 }
 
 pub struct Parent<S>(PhantomData<S>);
-pub struct Top;
+pub struct Root;
 
 impl<S> _private::Sealed for Parent<S> {}
-impl _private::Sealed for Top {}
+impl _private::Sealed for Root {}
 
 impl<Sm: StateMachineSpec + 'static, S: 'static + _private::StaticStateDesc<Sm>> ParentState<Sm>
     for Parent<S>
@@ -84,7 +84,7 @@ impl<Sm: StateMachineSpec + 'static, S: 'static + _private::StaticStateDesc<Sm>>
     const OPT_STATE: Option<State<Sm>> = Some(&S::STATE);
 }
 
-impl<Sm: StateMachineSpec + 'static> ParentState<Sm> for Top {
+impl<Sm: StateMachineSpec + 'static> ParentState<Sm> for Root {
     const OPT_STATE: Option<State<Sm>> = None;
 }
 

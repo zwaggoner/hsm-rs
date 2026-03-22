@@ -1,8 +1,8 @@
 extern crate rsm;
 
 use rsm::{
-    Action, Actor, Mailbox, MpmcBoundedQueue, Parent, State, StateImpl, StateMachineSpec, StateRef,
-    Step, Top,
+    Action, Actor, Mailbox, MpmcBoundedQueue, Parent, Root, State, StateImpl, StateMachineSpec, 
+    StateRef, Step,
 };
 
 #[derive(Debug)]
@@ -25,7 +25,7 @@ impl StateMachineSpec for TestActor {
 struct State1;
 
 impl StateImpl<State1> for TestActor {
-    type Parent = Top;
+    type Parent = Root;
 
     fn initial(&mut self) -> Option<State<Self>> {
         println!("State1 Initial");
