@@ -63,7 +63,7 @@ impl Blinky {
             }
         });
 
-        return button_state;
+        button_state
     }
 
     fn enable_button_event(&mut self) {
