@@ -43,22 +43,55 @@ impl Blinky {
     fn new(led: LedType) -> Self {
         Self { led, divisor: 1 }
     }
+
+    fn configure_blink_timer(&mut self) {
+        let update_rate = Self::MAX_UPDATE_RATE / self.divisor;
+
+        cortex_m::interrupt::free(|cs| {
+            if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
+                shared.blink_timer.start(update_rate.millis()).unwrap();
+            }
+        });
+    }
+
+    fn get_button_state(&mut self) -> bool {
+        let mut button_state = false;
+
+        cortex_m::interrupt::free(|cs| {
+            if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
+                button_state = shared.button.is_high();
+            }
+        });
+
+        return button_state;
+    }
+
+    fn enable_button_event(&mut self) {
+        cortex_m::interrupt::free(|cs| {
+            if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
+                unsafe {
+                    shared.button.clear_interrupt_pending_bit();
+                    cortex_m::peripheral::NVIC::unmask(shared.button.interrupt());
+                }
+            }
+        });
+    }
+
+    fn start_debounce_timer(&mut self) {
+        cortex_m::interrupt::free(|cs| {
+            if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
+                shared.debounce_timer.start(20.millis()).unwrap();
+                shared.debounce_timer.listen(Event::Update);
+            }
+        });
+    }
 }
 
 impl StateMachineSpec for Blinky {
     type Event = BlinkEvent;
 
     fn initial(&mut self) -> State<Self> {
-        cortex_m::interrupt::free(|cs| {
-            if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
-                shared
-                    .blink_timer
-                    .start(Self::MAX_UPDATE_RATE.millis())
-                    .unwrap();
-                shared.blink_timer.listen(Event::Update);
-            }
-        });
-
+        self.configure_blink_timer();
         LedOn::state()
     }
 }
@@ -71,49 +104,22 @@ impl StateImpl<BlinkyTop> for Blinky {
     fn handler(&mut self, event: &BlinkEvent) -> Action<Self> {
         match event {
             BlinkEvent::ButtonPress => {
-                cortex_m::interrupt::free(|cs| {
-                    if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
-                        shared.debounce_timer.start(10.millis()).unwrap();
-                        shared.debounce_timer.listen(Event::Update);
-                    }
-                });
+                self.start_debounce_timer();
 
                 Action::Handled
             }
             BlinkEvent::DebounceTimeout => {
-                let mut button_state = false;
-
-                cortex_m::interrupt::free(|cs| {
-                    if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
-                        button_state = shared.button.is_high();
-                    }
-                });
-
-                if button_state {
+                if self.get_button_state() {
                     self.divisor += 1;
 
                     if self.divisor > Self::MAX_DIVISOR {
                         self.divisor = 1;
                     }
 
-                    let update_rate = Self::MAX_UPDATE_RATE / self.divisor;
-
-                    cortex_m::interrupt::free(|cs| {
-                        if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
-                            shared.blink_timer.start(update_rate.millis()).unwrap();
-                        }
-                    });
+                    self.configure_blink_timer();
                 }
 
-                cortex_m::interrupt::free(|cs| {
-                    if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
-                        unsafe {
-                            shared.button.clear_interrupt_pending_bit();
-                            cortex_m::peripheral::NVIC::unmask(shared.button.interrupt());
-                        }
-                    }
-                });
-
+                self.enable_button_event();
                 Action::Handled
             }
             _ => Action::Unhandled,
@@ -183,8 +189,8 @@ fn TIM3() {
     cortex_m::interrupt::free(|cs| {
         if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
             let _ = shared.producer.enqueue(BlinkEvent::DebounceTimeout);
-            shared.debounce_timer.clear_all_flags();
             let _ = shared.debounce_timer.cancel();
+            shared.debounce_timer.clear_all_flags();
         }
     });
 }
@@ -193,8 +199,8 @@ fn TIM3() {
 fn EXTI15_10() {
     cortex_m::interrupt::free(|cs| {
         if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
-            let _ = shared.producer.enqueue(BlinkEvent::ButtonPress);
             cortex_m::peripheral::NVIC::mask(shared.button.interrupt());
+            let _ = shared.producer.enqueue(BlinkEvent::ButtonPress);
             shared.button.clear_interrupt_pending_bit();
         }
     });
@@ -203,32 +209,46 @@ fn EXTI15_10() {
 #[entry]
 fn main() -> ! {
     if let Some(mut dp) = pac::Peripherals::take() {
+        // Always configure your clocks first
         let mut rcc = dp.RCC.freeze(Config::hsi().sysclk(48.MHz()));
 
+        // Configure LED GPIO
         let gpioa = dp.GPIOA.split(&mut rcc);
         let led = gpioa.pa5.into_push_pull_output();
 
+        // Configure Button GPIO
         let gpioc = dp.GPIOC.split(&mut rcc);
         let mut button = gpioc.pc13;
 
+        // Get syscfg HAL 
         let mut syscfg = dp.SYSCFG.constrain(&mut rcc);
+
+        // Configure button inputs/events
         button.make_interrupt_source(&mut syscfg);
         button.trigger_on_edge(&mut dp.EXTI, Edge::Rising);
         button.enable_interrupt(&mut dp.EXTI);
 
-        let blink_timer = dp.TIM2.counter_ms(&mut rcc);
+        // Setup blink timer
+        let mut blink_timer = dp.TIM2.counter_ms(&mut rcc);
+        blink_timer.listen(Event::Update);
+
+        // Setup debounce timer
         let debounce_timer = dp.TIM3.counter_ms(&mut rcc);
 
+        // Construct the Blinky context object
+        let context = Blinky::new(led);
+
+        // Unmask all of the interrupts we are going to use
         unsafe {
             cortex_m::peripheral::NVIC::unmask(interrupt::TIM2);
             cortex_m::peripheral::NVIC::unmask(interrupt::TIM3);
             cortex_m::peripheral::NVIC::unmask(button.interrupt());
         }
 
-        let context = Blinky::new(led);
-
+        // Get the producer and consumer handles for the actor mailbox
         let (producer, consumer) = MAILBOX.split().unwrap();
 
+        // Configure the shared object with everything needed in the ISR context
         cortex_m::interrupt::free(|cs| {
             SHARED.borrow(cs).replace(Some(Shared {
                 producer,
@@ -238,10 +258,15 @@ fn main() -> ! {
             }));
         });
 
+        // Configure the blinky actor with the context object and consumer
         let mut actor = Actor::<Blinky, BlinkEventQueue>::new(context, consumer);
 
+        // Actor event loop
         loop {
             while actor.step() {}
+            
+            // All of our events come from interrupt context, so wfi (wait for interrupt) is a good
+            // idle task when we don't have any work left to do
             cortex_m::asm::wfi();
         }
     }
