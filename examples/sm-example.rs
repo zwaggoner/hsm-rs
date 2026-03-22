@@ -58,7 +58,7 @@ impl StateImpl<State11> for TestActor {
     }
 
     fn handler(&mut self, _event: &UserEvent) -> Action<Self> {
-        Action::<Self>::Transition(State12::state())
+        Action::Transition(State12::state())
     }
 
     fn exit(&mut self) {
@@ -82,7 +82,7 @@ impl StateImpl<State12> for TestActor {
     }
 
     fn handler(&mut self, _event: &UserEvent) -> Action<Self> {
-        Action::<Self>::Transition(State11::state())
+        Action::Transition(State11::state())
     }
 
     fn exit(&mut self) {
