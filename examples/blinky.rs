@@ -11,7 +11,7 @@ use stm32f4xx_hal as hal;
 
 use hal::{
     gpio::{self, Edge, Input, Output, PushPull},
-    pac::{self, TIM2, interrupt},
+    pac::{self, TIM2, TIM3, interrupt},
     prelude::*,
     rcc::Config,
     timer::{CounterMs, Event},
@@ -24,21 +24,41 @@ use rsm::{
 
 #[derive(Debug)]
 enum BlinkEvent {
-    UpdateTimeout,
+    ButtonPress,
+    DebounceTimeout,
     Timeout,
 }
 
-struct Blinky {
-    led: gpio::PA5<Output<PushPull>>,
-    max_update_rate: u32,
-    update_rate_adjust: u32,
-    update_rate: u32,
+type LedType = gpio::PA5<Output<PushPull>>;
+
+struct Blinky { 
+    led: LedType,
+    divisor: u32,
+}
+
+impl Blinky {
+    const MAX_UPDATE_RATE: u32 = 2000;
+    const MAX_DIVISOR: u32 = 4;
+
+    fn new(led: LedType) -> Self {
+        Self {
+            led,
+            divisor: 1,
+        }
+    }
 }
 
 impl StateMachineSpec for Blinky {
     type Event = BlinkEvent;
 
     fn initial(&mut self) -> State<Self> {
+        cortex_m::interrupt::free(|cs| {
+            if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
+                shared.blink_timer.start(Self::MAX_UPDATE_RATE.millis()).unwrap();
+                shared.blink_timer.listen(Event::Update);
+            }
+        });
+
         LedOn::state()
     }
 }
@@ -50,21 +70,43 @@ impl StateImpl<BlinkyTop> for Blinky {
 
     fn handler(&mut self, event: &BlinkEvent) -> Action<Self> {
         match event {
-            BlinkEvent::UpdateTimeout => {
-                self.update_rate -= self.update_rate_adjust;
-
-                if self.update_rate < self.update_rate_adjust {
-                    self.update_rate = self.max_update_rate;
-                }
-
+            BlinkEvent::ButtonPress => {
                 cortex_m::interrupt::free(|cs| {
-                    if let Some(timer) = TIMER.borrow(cs).borrow_mut().as_mut() {
-                        timer.start(self.update_rate.millis()).unwrap();
+                    if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
+                        shared.debounce_timer.start(10.millis()).unwrap();
+                        shared.debounce_timer.listen(Event::Update);
                     }
                 });
 
                 Action::<Self>::Handled
-            }
+            },
+            BlinkEvent::DebounceTimeout => {
+                let mut button_state = false;
+
+                cortex_m::interrupt::free(|cs| {
+                    if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
+                        button_state = shared.button.is_high();
+                    }
+                });
+
+                if button_state {
+                    self.divisor += 1;
+
+                    if self.divisor > Self::MAX_DIVISOR {
+                        self.divisor = 1;
+                    }
+
+                    let update_rate = Self::MAX_UPDATE_RATE / self.divisor;
+
+                    cortex_m::interrupt::free(|cs| {
+                        if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
+                            shared.blink_timer.start(update_rate.millis()).unwrap();
+                        }
+                    });
+                }
+
+                Action::<Self>::Handled
+            },
             _ => Action::<Self>::Unhandled,
         }
     }
@@ -107,20 +149,33 @@ impl StateImpl<LedOff> for Blinky {
 type BlinkEventQueue = MpmcBoundedQueue<BlinkEvent, 32>;
 
 static MAILBOX: Mailbox<BlinkEvent, BlinkEventQueue> = Mailbox::new(BlinkEventQueue::new());
-static PRODUCER: Mutex<RefCell<Option<EventProducer<BlinkEvent, BlinkEventQueue>>>> =
-    Mutex::new(RefCell::new(None));
-static TIMER: Mutex<RefCell<Option<CounterMs<TIM2>>>> = Mutex::new(RefCell::new(None));
-static BUTTON: Mutex<RefCell<Option<gpio::PC13<Input>>>> = Mutex::new(RefCell::new(None));
+
+struct Shared {
+    producer: EventProducer<'static, BlinkEvent, BlinkEventQueue>,
+    blink_timer: CounterMs<TIM2>,
+    debounce_timer: CounterMs<TIM3>,
+    button: gpio::PC13<Input>,
+}
+
+static SHARED: Mutex<RefCell<Option<Shared>>> = Mutex::new(RefCell::new(None));
 
 #[interrupt]
 fn TIM2() {
     cortex_m::interrupt::free(|cs| {
-        if let Some(producer) = PRODUCER.borrow(cs).borrow().as_ref() {
-            let _ = producer.enqueue(BlinkEvent::Timeout);
+        if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
+            let _ = shared.producer.enqueue(BlinkEvent::Timeout);
+            shared.blink_timer.clear_all_flags();
         }
+    });
+}
 
-        if let Some(timer) = TIMER.borrow(cs).borrow_mut().as_mut() {
-            timer.clear_all_flags();
+#[interrupt]
+fn TIM3() {
+    cortex_m::interrupt::free(|cs| {
+        if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
+            let _ = shared.producer.enqueue(BlinkEvent::DebounceTimeout);
+            shared.debounce_timer.clear_all_flags();
+            let _ = shared.debounce_timer.cancel();
         }
     });
 }
@@ -128,12 +183,9 @@ fn TIM2() {
 #[interrupt]
 fn EXTI15_10() {
     cortex_m::interrupt::free(|cs| {
-        if let Some(producer) = PRODUCER.borrow(cs).borrow().as_ref() {
-            let _ = producer.enqueue(BlinkEvent::UpdateTimeout);
-        }
-
-        if let Some(button) = BUTTON.borrow(cs).borrow_mut().as_mut() {
-            button.clear_interrupt_pending_bit();
+        if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
+            let _ = shared.producer.enqueue(BlinkEvent::ButtonPress);
+            shared.button.clear_interrupt_pending_bit();
         }
     });
 }
@@ -151,32 +203,31 @@ fn main() -> ! {
 
         let mut syscfg = dp.SYSCFG.constrain(&mut rcc);
         button.make_interrupt_source(&mut syscfg);
-        button.trigger_on_edge(&mut dp.EXTI, Edge::Falling);
+        button.trigger_on_edge(&mut dp.EXTI, Edge::Rising);
         button.enable_interrupt(&mut dp.EXTI);
 
-        let mut timer = dp.TIM2.counter_ms(&mut rcc);
-        let init_update_rate = 2000;
-
-        timer.start(init_update_rate.millis()).unwrap();
-        timer.listen(Event::Update);
+        let blink_timer = dp.TIM2.counter_ms(&mut rcc);
+        let debounce_timer = dp.TIM3.counter_ms(&mut rcc);
 
         unsafe {
             cortex_m::peripheral::NVIC::unmask(interrupt::TIM2);
+            cortex_m::peripheral::NVIC::unmask(interrupt::TIM3);
             cortex_m::peripheral::NVIC::unmask(button.interrupt());
         }
 
-        let context = Blinky {
-            led,
-            max_update_rate: init_update_rate,
-            update_rate_adjust: 500,
-            update_rate: init_update_rate,
-        };
+        let context = Blinky::new(led); 
+
         let (producer, consumer) = MAILBOX.split().unwrap();
 
         cortex_m::interrupt::free(|cs| {
-            PRODUCER.borrow(cs).replace(Some(producer));
-            TIMER.borrow(cs).replace(Some(timer));
-            BUTTON.borrow(cs).replace(Some(button));
+            SHARED.borrow(cs).replace(Some(
+                    Shared {
+                        producer,
+                        blink_timer,
+                        debounce_timer,
+                        button
+                    }
+            ));
         });
 
         let mut actor = Actor::<Blinky, BlinkEventQueue>::new(context, consumer);
