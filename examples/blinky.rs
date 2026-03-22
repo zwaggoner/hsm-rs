@@ -18,7 +18,7 @@ use hal::{
 };
 
 use rsm::{
-    Action, Actor, EventProducer, Mailbox, MpmcBoundedQueue, Parent, Root, Runtime, Scheduler,
+    Action, Actor, EventProducer, Mailbox, MpmcBoundedQueue, Parent, Root, Runtime, Superloop,
     State, StateImpl, StateMachineSpec, StateRef,
 };
 
@@ -261,14 +261,14 @@ fn main() -> ! {
         // Configure the blinky actor with the context object and consumer
         let mut actor = Actor::<Blinky, BlinkEventQueue>::new(context, consumer);
 
-        Scheduler::superloop(
+        Superloop::new(
             [&mut actor],
             Some(|| {
                 cortex_m::asm::wfi();
             }),
-        )
-        .run();
+        ).run();
     }
 
     loop {}
 }
+

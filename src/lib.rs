@@ -279,8 +279,9 @@ impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize> StateMachine<Sm, MAX_NES
     }
 }
 
-pub trait Step {
-    fn step(&mut self) -> bool;
+pub trait ActorRuntime {
+    fn initialized(&self) -> bool;
+    fn step(&mut self) -> StepStatus;
 }
 
 enum CurrSM<Sm: StateMachineSpec + 'static, const MAX_NEST_DEPTH: usize> {
@@ -303,6 +304,8 @@ pub struct Actor<
     context: Sm,
     sm: CurrSM<Sm, MAX_NEST_DEPTH>,
     event_consumer: EventConsumer<'a, Sm::Event, Q>,
+    next_event: Option<Sm::Event>,
+    initialized: bool,
 }
 
 impl<'a, Sm: StateMachineSpec, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usize>
@@ -313,25 +316,67 @@ impl<'a, Sm: StateMachineSpec, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH:
             context,
             sm: CurrSM::default(),
             event_consumer,
+            next_event: None,
+            initialized: false,
         }
     }
 }
 
-impl<'a, Sm: StateMachineSpec, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usize> Step
+pub enum StepStatus {
+    Initialized{ pending: bool}, 
+    Ran{ pending: bool},
+    Idle,
+}
+
+impl StepStatus {
+    pub fn is_idle(&self) -> bool {
+        matches!(self, StepStatus::Idle)
+    }
+
+    pub fn is_pending(&self) -> bool {
+        match self {
+            StepStatus::Initialized { pending } | StepStatus::Ran { pending } => *pending,
+            _ => false
+        }
+    }
+}
+
+impl<'a, Sm: StateMachineSpec, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usize> ActorRuntime
     for Actor<'a, Sm, Q, MAX_NEST_DEPTH>
 {
-    fn step(&mut self) -> bool {
+    fn initialized(&self) -> bool {
+        self.initialized
+    }
+
+    fn step(&mut self) -> StepStatus {
+        let mut step_status: StepStatus = StepStatus::Idle;
+
         if let CurrSM::Run(sm) = &mut self.sm {
-            if let Some(event) = self.event_consumer.dequeue() {
+            if let Some(event) = self.next_event.take() {
                 sm.dispatch(&mut self.context, &event);
-                return true;
+                step_status = StepStatus::Ran{ pending: false };
+            }
+            else if let Some(event) = self.event_consumer.dequeue() {
+                sm.dispatch(&mut self.context, &event);
+                step_status = StepStatus::Ran{ pending: false };
             }
         } else if let CurrSM::Init(sm) = core::mem::take(&mut self.sm) {
             self.sm = CurrSM::Run(sm.initial(&mut self.context));
-            return true;
+            step_status = StepStatus::Initialized{ pending: false };
+            self.initialized = true;
+        }
+        
+        match &mut step_status {
+            StepStatus::Ran{ pending } | StepStatus::Initialized{ pending } => {
+                if let Some(next_event) = self.event_consumer.dequeue() {
+                    self.next_event = Some(next_event);
+                    *pending = true;
+                }
+            }
+            _ => (),
         }
 
-        false
+        step_status
     }
 }
 
@@ -339,19 +384,14 @@ pub trait Runtime {
     fn run(&mut self) -> !;
 }
 
-pub struct Scheduler {}
-
-pub struct Superloop<'a, const NUM_ACTORS: usize> {
-    actors: [&'a mut dyn Step; NUM_ACTORS],
+struct ToSchedule<'a, const NUM_ACTORS: usize> {
+    actors: [&'a mut dyn ActorRuntime; NUM_ACTORS],
     idle_task: fn(),
 }
 
-impl Scheduler {
-    pub fn superloop<'a, const NUM_ACTORS: usize>(
-        actors: [&'a mut dyn Step; NUM_ACTORS],
-        idle_task: Option<fn()>,
-    ) -> Superloop<'a, NUM_ACTORS> {
-        Superloop {
+impl<'a, const NUM_ACTORS: usize> ToSchedule<'a, NUM_ACTORS> {
+    fn new(actors: [&'a mut dyn ActorRuntime; NUM_ACTORS], idle_task: Option<fn()>) -> Self {
+        Self {
             actors,
             idle_task: {
                 if let Some(idle_task) = idle_task {
@@ -364,17 +404,72 @@ impl Scheduler {
     }
 }
 
+pub struct Superloop<'a, const NUM_ACTORS: usize> {
+    inner: ToSchedule<'a, NUM_ACTORS>,
+}
+
+pub struct Cooperative<'a, const NUM_ACTORS: usize> {
+    inner: ToSchedule<'a, NUM_ACTORS>,
+}
+
+impl<'a, const NUM_ACTORS: usize> Superloop<'a, NUM_ACTORS> {
+    pub fn new(
+        actors: [&'a mut dyn ActorRuntime; NUM_ACTORS],
+        idle_task: Option<fn()>,
+    ) -> Self {
+        Self {
+            inner: ToSchedule::new(actors, idle_task),
+        }
+    }
+}
+
 impl<'a, const NUM_ACTORS: usize> Runtime for Superloop<'a, NUM_ACTORS> {
     fn run(&mut self) -> ! {
         loop {
             let mut ran: bool = false;
 
-            for a in &mut self.actors {
-                ran |= a.step();
+            for a in &mut self.inner.actors {
+                ran |= !a.step().is_idle();
             }
 
             if !ran {
-                (self.idle_task)();
+                (self.inner.idle_task)();
+            }
+        }
+    }
+}
+
+impl<'a, const NUM_ACTORS: usize> Cooperative<'a, NUM_ACTORS> {
+    pub fn new(
+        actors: [&'a mut dyn ActorRuntime; NUM_ACTORS],
+        idle_task: Option<fn()>,
+    ) -> Self {
+        Self {
+            inner: ToSchedule::new(actors, idle_task),
+        }
+    }
+}
+
+impl<'a, const NUM_ACTORS: usize> Runtime for Cooperative<'a, NUM_ACTORS> {
+    fn run(&mut self) -> ! {
+        for a in &mut self.inner.actors {
+            if !a.initialized() {
+                let _ = a.step();
+            }
+        }
+
+        loop {
+            let mut ran: bool = false;
+
+            for a in &mut self.inner.actors {
+                if !a.step().is_idle() {
+                    ran = true;
+                    break;
+                }
+            }
+
+            if !ran {
+                (self.inner.idle_task)();
             }
         }
     }
