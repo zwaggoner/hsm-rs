@@ -74,7 +74,7 @@ pub enum Action<Sm: StateMachineDef + 'static> {
 ///
 /// `StateDef` requires that you have implemented `StateMachineDef`
 ///
-/// Continuing our example from above: 
+/// Continuing our example from above:
 ///
 /// ```
 /// # use rsm::*;
@@ -103,7 +103,7 @@ pub enum Action<Sm: StateMachineDef + 'static> {
 /// struct State1;
 ///
 /// impl StateDef<State1> for MyActor {
-///     // Use the Top type to signify this state has no parent, that is it is the topmost state 
+///     // Use the Top type to signify this state has no parent, that is it is the topmost state
 ///     type Parent = Top;
 ///
 ///     // Perform entry actions occurs whenever the state is entered (transitioned to)
@@ -184,7 +184,7 @@ pub trait ParentState<Sm: StateMachineDef + 'static>: _private::Sealed {
 /// #   type Parent = Top;
 /// # }
 /// # struct State1;
-/// # 
+/// #
 /// # impl StateDef<State1> for MyActor {
 ///     // State2 is the parent state of State1
 ///     type Parent = Super<State2>;
@@ -225,9 +225,7 @@ impl<S: 'static, Sm: StateDef<S> + 'static> _private::StaticStateDesc<Sm> for S 
     };
 }
 
-impl<S: 'static + _private::StaticStateDesc<Sm>, Sm: StateMachineDef + 'static> StateRef<Sm>
-    for S
-{
+impl<S: 'static + _private::StaticStateDesc<Sm>, Sm: StateMachineDef + 'static> StateRef<Sm> for S {
     fn state() -> State<Sm> {
         &Self::STATE
     }

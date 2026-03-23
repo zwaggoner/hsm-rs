@@ -1,8 +1,8 @@
 extern crate rsm;
 
 use rsm::{
-    Action, Actor, ActorRuntime, Mailbox, MpmcBoundedQueue, State, StateDef,
-    StateMachineDef, StateRef, Super, Top,
+    Action, Actor, ActorRuntime, Mailbox, MpmcBoundedQueue, State, StateDef, StateMachineDef,
+    StateRef, Super, Top,
 };
 
 #[derive(Debug)]

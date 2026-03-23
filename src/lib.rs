@@ -5,7 +5,10 @@
 //! version of a state machine framework in rust, while being as idiomatic as possible (based upon
 //! the understanding of a for a first-time rust developer. The goal of this framework was primarily to be educational for the
 //! author, there are other rust state machine/actor frameworks that may be more suitable for your
-//! purpose. 
+//! purpose.
+//! 
+//! To get started with this framework, please look at the examples for [`StateMachineDef`] followed by
+//! [`StateDef`]. 
 
 mod actor;
 mod event_queue;
@@ -19,5 +22,5 @@ pub use actor::{Actor, ActorRuntime};
 pub use event_queue::{EventConsumer, EventProducer, Mailbox, QueueAdapter};
 pub use mpmc_bounded_queue::MpmcBoundedQueue;
 pub use runtime::{Cooperative, Runtime, Superloop};
-pub use state_machine::{Action, Super, State, StateDef, StateMachineDef, StateRef, Top};
+pub use state_machine::{Action, State, StateDef, StateMachineDef, StateRef, Super, Top};
 pub use state_machine_runtime::{Init, Run, StateMachine};

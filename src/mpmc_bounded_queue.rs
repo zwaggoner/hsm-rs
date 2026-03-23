@@ -1,8 +1,3 @@
-/// This is a direct port of Dmitry Vykov's [mpmc_bounded_queue](https://sites.google.com/site/1024cores/home/lock-free-algorithms/queues/bounded-mpmc-queue) into rust. Mpmc is chosen as the
-/// default queue implementation for this framework since although the rsm framework only ever
-/// needs mpsc, this was the bounded queue implementation that was found to be most common in other
-/// frameworks, and provided the guarantees necessary without having to develop a whole new mpsc
-/// bounded queue implementation.
 use core::cell::UnsafeCell;
 use core::cmp;
 use core::mem::MaybeUninit;
@@ -20,6 +15,11 @@ struct Slot<T> {
     data: UnsafeCell<MaybeUninit<T>>,
 }
 
+/// This is a direct port of Dmitry Vykov's [mpmc_bounded_queue](https://sites.google.com/site/1024cores/home/lock-free-algorithms/queues/bounded-mpmc-queue) into rust. Mpmc is chosen as the
+/// default queue implementation for this framework since although the rsm framework only ever
+/// needs mpsc, this was the bounded queue implementation that was found to be most common in other
+/// frameworks, and provided the guarantees necessary without having to develop a whole new mpsc
+/// bounded queue implementation.
 pub struct MpmcBoundedQueue<T, const SIZE: usize> {
     buffer: [Slot<T>; SIZE],
     enqueue_pos: AtomicUsize,
