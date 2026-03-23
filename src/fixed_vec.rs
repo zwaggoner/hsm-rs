@@ -39,7 +39,7 @@ impl<T, const MAX_DEPTH: usize> FixedVec<T, MAX_DEPTH> {
     pub(crate) fn clear(&mut self) {
         unsafe {
             ptr::drop_in_place(ptr::slice_from_raw_parts_mut(
-                self.arr.as_mut_ptr() as *mut T,
+                self.arr.as_mut_ptr().cast::<T>(),
                 self.len,
             ));
         }
@@ -58,13 +58,13 @@ impl<T, const MAX_DEPTH: usize> Deref for FixedVec<T, MAX_DEPTH> {
     type Target = [T];
 
     fn deref(&self) -> &[T] {
-        unsafe { slice::from_raw_parts(self.arr.as_ptr() as *const T, self.len) }
+        unsafe { slice::from_raw_parts(self.arr.as_ptr().cast::<T>(), self.len) }
     }
 }
 
 impl<T, const MAX_DEPTH: usize> DerefMut for FixedVec<T, MAX_DEPTH> {
     fn deref_mut(&mut self) -> &mut [T] {
-        unsafe { slice::from_raw_parts_mut(self.arr.as_mut_ptr() as *mut T, self.len) }
+        unsafe { slice::from_raw_parts_mut(self.arr.as_mut_ptr().cast::<T>(), self.len) }
     }
 }
 

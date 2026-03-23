@@ -40,7 +40,7 @@ impl<'a, const NUM_ACTORS: usize> Superloop<'a, NUM_ACTORS> {
     }
 }
 
-impl<'a, const NUM_ACTORS: usize> Runtime for Superloop<'a, NUM_ACTORS> {
+impl<const NUM_ACTORS: usize> Runtime for Superloop<'_, NUM_ACTORS> {
     fn run(&mut self) -> ! {
         loop {
             let mut ran: bool = false;
@@ -64,7 +64,7 @@ impl<'a, const NUM_ACTORS: usize> Cooperative<'a, NUM_ACTORS> {
     }
 }
 
-impl<'a, const NUM_ACTORS: usize> Runtime for Cooperative<'a, NUM_ACTORS> {
+impl<const NUM_ACTORS: usize> Runtime for Cooperative<'_, NUM_ACTORS> {
     fn run(&mut self) -> ! {
         // For cooperative scheduler since runtime isn't guaranteed, initialize first
         for a in &mut self.inner.actors {

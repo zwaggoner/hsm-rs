@@ -21,7 +21,7 @@ impl StepStatus {
     pub fn is_pending(&self) -> bool {
         match self {
             StepStatus::Initialized { pending } | StepStatus::Ran { pending } => *pending,
-            _ => false,
+            StepStatus::Idle => false,
         }
     }
 
@@ -68,8 +68,8 @@ impl<'a, Sm: StateMachineSpec, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH:
     }
 }
 
-impl<'a, Sm: StateMachineSpec, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usize> ActorRuntime
-    for Actor<'a, Sm, Q, MAX_NEST_DEPTH>
+impl<Sm: StateMachineSpec, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usize> ActorRuntime
+    for Actor<'_, Sm, Q, MAX_NEST_DEPTH>
 {
     fn initialized(&self) -> bool {
         self.initialized
@@ -98,8 +98,8 @@ impl<'a, Sm: StateMachineSpec, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH:
                     self.next_event = Some(next_event);
                     *pending = true;
                 }
-            }
-            _ => (),
+            },
+            StepStatus::Idle => (),
         }
 
         step_status

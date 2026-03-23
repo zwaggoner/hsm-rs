@@ -1,7 +1,14 @@
 use core::marker::PhantomData;
 use core::sync::atomic::{AtomicBool, Ordering};
 
+/// `QueueAdapter` trait is made available such that any underlying queue that implements it can be
+/// used as an event queue in the rsm framework.
+/// `QueueAdapter` queues are required to implement interior mutability such that the
+/// consumer/producer split can be managed cleanly by the framework no matter the underlying queue
 pub trait QueueAdapter<T> {
+    /// Enqueues an item to the underlying queue
+    /// # Errors
+    /// If the queue is unable to enqueue the data, it will return an error. 
     fn enqueue(&self, data: T) -> Result<(), T>;
     fn dequeue(&self) -> Option<T>;
 }
@@ -13,13 +20,16 @@ pub struct EventProducer<'a, E, Q: QueueAdapter<E>> {
     _pd: PhantomData<E>,
 }
 
-impl<'a, E, Q: QueueAdapter<E>> EventProducer<'a, E, Q> {
+impl<E, Q: QueueAdapter<E>> EventProducer<'_, E, Q> {
+    /// Enqueues an item to the underlying queue via the producer interface
+    /// # Errors
+    /// If the queue is unable to enqueue the data, it will return an error. 
     pub fn enqueue(&self, event: E) -> Result<(), E> {
         self.inner.enqueue(event)
     }
 }
 
-impl<'a, E, Q: QueueAdapter<E> + MultiProducer> Clone for EventProducer<'a, E, Q> {
+impl<E, Q: QueueAdapter<E> + MultiProducer> Clone for EventProducer<'_, E, Q> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner,
@@ -33,7 +43,7 @@ pub struct EventConsumer<'a, E, Q: QueueAdapter<E>> {
     _pd: PhantomData<E>,
 }
 
-impl<'a, E, Q: QueueAdapter<E>> EventConsumer<'a, E, Q> {
+impl<E, Q: QueueAdapter<E>> EventConsumer<'_, E, Q> {
     pub(crate) fn dequeue(&self) -> Option<E> {
         self.inner.dequeue()
     }

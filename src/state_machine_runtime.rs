@@ -40,8 +40,8 @@ impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize, S: RunState>
 
         while let Some(parent) = curr_state.parent {
             match path.push(parent) {
-                Ok(_) => (),
-                Err(_) => excess_depth += 1,
+                Ok(()) => (),
+                Err(()) => excess_depth += 1,
             }
 
             curr_state = parent;
@@ -51,10 +51,7 @@ impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize, S: RunState>
 
         assert!(
             depth <= MAX_NEST_DEPTH,
-            "Path to state exceeds MAX_NEST_DEPTH: {}, suggest increasing to {}",
-            MAX_NEST_DEPTH,
-            depth
-        );
+            "Path to state exceeds MAX_NEST_DEPTH: {MAX_NEST_DEPTH}, suggest increasing to {depth}");
 
         path.reverse();
 
@@ -141,6 +138,7 @@ impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize> Default
 }
 
 impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize> StateMachine<Sm, MAX_NEST_DEPTH, Init> {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             path: FixedVec::<State<Sm>, MAX_NEST_DEPTH>::new(),
@@ -168,7 +166,7 @@ impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize> StateMachine<Sm, MAX_NES
                     self.transition(context, new_state);
                     break;
                 }
-                _ => continue,
+                Action::Unhandled => (),
             }
         }
     }

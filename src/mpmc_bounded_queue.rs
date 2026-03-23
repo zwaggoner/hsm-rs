@@ -1,5 +1,11 @@
+/// This is a direct port of Dmitry Vykov's [mpmc_bounded_queue](https://sites.google.com/site/1024cores/home/lock-free-algorithms/queues/bounded-mpmc-queue) into rust. Mpmc is chosen as the
+/// default queue implementation for this framework since although the rsm framework only ever
+/// needs mpsc, this was the bounded queue implementation that was found to be most common in other
+/// frameworks, and provided the guarantees necessary without having to develop a whole new mpsc
+/// bounded queue implementation.
 use core::cell::UnsafeCell;
 use core::mem::MaybeUninit;
+use core::cmp;
 
 use crate::event_queue::{MultiProducer, QueueAdapter};
 
@@ -29,6 +35,14 @@ impl<T, const SIZE: usize> Default for MpmcBoundedQueue<T, SIZE> {
 impl<T, const SIZE: usize> MpmcBoundedQueue<T, SIZE> {
     const BUFFER_MASK: usize = SIZE - 1;
 
+    /// Constructs a new `MpmcBoundedQueue`
+    ///
+    /// # Panics
+    /// Per the limitations specified in the C++ implementation of this queue the following bounds
+    /// must be satisfied:
+    /// - The queue `SIZE` must be at least 2
+    /// - The queue `SIZE` must be a power of 2
+    #[must_use]
     #[cfg(not(all(test, feature = "loom-tests")))]
     pub const fn new() -> Self {
         assert!(SIZE >= 2, "Queue size must be at least two elements");
@@ -80,29 +94,33 @@ impl<T, const SIZE: usize> QueueAdapter<T> for MpmcBoundedQueue<T, SIZE> {
         loop {
             let slot = &self.buffer[pos & Self::BUFFER_MASK];
             let seq = slot.sequence.load(Ordering::Acquire);
-            let dif: isize = seq as isize - pos as isize;
+            let dif: isize = seq.cast_signed() - pos.cast_signed();
 
-            if dif == 0 {
-                match self.enqueue_pos.compare_exchange_weak(
-                    pos,
-                    pos + 1,
-                    Ordering::Relaxed,
-                    Ordering::Relaxed,
-                ) {
-                    Ok(_) => {
-                        unsafe {
-                            (*slot.data.get()).write(data);
+            match dif.cmp(&0) {
+                cmp::Ordering::Equal => {
+                    match self.enqueue_pos.compare_exchange_weak(
+                        pos,
+                        pos + 1,
+                        Ordering::Relaxed,
+                        Ordering::Relaxed,
+                    ) {
+                        Ok(_) => {
+                            unsafe {
+                                (*slot.data.get()).write(data);
+                            }
+
+                            slot.sequence.store(pos + 1, Ordering::Release);
+                            return Ok(());
                         }
-
-                        slot.sequence.store(pos + 1, Ordering::Release);
-                        return Ok(());
+                        Err(new_pos) => pos = new_pos,
                     }
-                    Err(new_pos) => pos = new_pos,
-                }
-            } else if dif < 0 {
-                return Err(data);
-            } else {
-                pos = self.enqueue_pos.load(Ordering::Relaxed);
+                },
+                cmp::Ordering::Less => {
+                    return Err(data);
+                },
+                cmp::Ordering::Greater => {
+                    pos = self.enqueue_pos.load(Ordering::Relaxed);
+                },
             }
         }
     }
@@ -114,27 +132,31 @@ impl<T, const SIZE: usize> QueueAdapter<T> for MpmcBoundedQueue<T, SIZE> {
             let slot = &self.buffer[pos & Self::BUFFER_MASK];
             let seq = slot.sequence.load(Ordering::Acquire);
 
-            let dif: isize = seq as isize - (pos + 1) as isize;
+            let dif: isize = seq.cast_signed() - (pos + 1).cast_signed();
 
-            if dif == 0 {
-                match self.dequeue_pos.compare_exchange_weak(
-                    pos,
-                    pos + 1,
-                    Ordering::Relaxed,
-                    Ordering::Relaxed,
-                ) {
-                    Ok(_) => {
-                        let data = unsafe { (*slot.data.get()).assume_init_read() };
+            match dif.cmp(&0) {
+                cmp::Ordering::Equal => {
+                    match self.dequeue_pos.compare_exchange_weak(
+                        pos,
+                        pos + 1,
+                        Ordering::Relaxed,
+                        Ordering::Relaxed,
+                    ) {
+                        Ok(_) => {
+                            let data = unsafe { (*slot.data.get()).assume_init_read() };
 
-                        slot.sequence.store(pos + SIZE, Ordering::Release);
-                        return Some(data);
+                            slot.sequence.store(pos + SIZE, Ordering::Release);
+                            return Some(data);
+                        }
+                        Err(new_pos) => pos = new_pos,
                     }
-                    Err(new_pos) => pos = new_pos,
+                },
+                cmp::Ordering::Less => {
+                    return None;
+                },
+                cmp::Ordering::Greater => {
+                    pos = self.dequeue_pos.load(Ordering::Relaxed);
                 }
-            } else if dif < 0 {
-                return None;
-            } else {
-                pos = self.dequeue_pos.load(Ordering::Relaxed);
             }
         }
     }
