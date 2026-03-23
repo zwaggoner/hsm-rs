@@ -101,4 +101,3 @@ impl<Sm: StateMachineSpec> PartialEq for StateDesc<Sm> {
         self.id == other.id
     }
 }
-

@@ -1,6 +1,6 @@
-use core::marker::PhantomData;
-use crate::state_machine::{Action, StateMachineSpec, State};
 use crate::fixed_vec::FixedVec;
+use crate::state_machine::{Action, State, StateMachineSpec};
+use core::marker::PhantomData;
 
 mod _private {
     pub trait Sealed {}

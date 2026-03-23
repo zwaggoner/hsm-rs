@@ -11,7 +11,6 @@ mod state_machine_runtime;
 pub use actor::{Actor, ActorRuntime};
 pub use event_queue::{EventConsumer, EventProducer, Mailbox, QueueAdapter};
 pub use mpmc_bounded_queue::MpmcBoundedQueue;
-pub use runtime::{Superloop, Cooperative, Runtime};
+pub use runtime::{Cooperative, Runtime, Superloop};
 pub use state_machine::{Action, Parent, Root, State, StateImpl, StateMachineSpec, StateRef};
 pub use state_machine_runtime::{Init, Run, StateMachine};
-

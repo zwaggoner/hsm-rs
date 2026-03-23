@@ -1,6 +1,6 @@
+use crate::event_queue::{EventConsumer, QueueAdapter};
 use crate::state_machine::StateMachineSpec;
 use crate::state_machine_runtime::{Init, Run, StateMachine};
-use crate::event_queue::{EventConsumer, QueueAdapter};
 
 pub trait ActorRuntime {
     fn initialized(&self) -> bool;
@@ -105,4 +105,3 @@ impl<'a, Sm: StateMachineSpec, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH:
         step_status
     }
 }
-
