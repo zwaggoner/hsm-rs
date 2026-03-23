@@ -98,7 +98,7 @@ impl<Sm: StateMachineSpec, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usi
                     self.next_event = Some(next_event);
                     *pending = true;
                 }
-            },
+            }
             StepStatus::Idle => (),
         }
 

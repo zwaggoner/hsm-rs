@@ -51,7 +51,8 @@ impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize, S: RunState>
 
         assert!(
             depth <= MAX_NEST_DEPTH,
-            "Path to state exceeds MAX_NEST_DEPTH: {MAX_NEST_DEPTH}, suggest increasing to {depth}");
+            "Path to state exceeds MAX_NEST_DEPTH: {MAX_NEST_DEPTH}, suggest increasing to {depth}"
+        );
 
         path.reverse();
 

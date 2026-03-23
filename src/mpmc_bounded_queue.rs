@@ -4,8 +4,8 @@
 /// frameworks, and provided the guarantees necessary without having to develop a whole new mpsc
 /// bounded queue implementation.
 use core::cell::UnsafeCell;
-use core::mem::MaybeUninit;
 use core::cmp;
+use core::mem::MaybeUninit;
 
 use crate::event_queue::{MultiProducer, QueueAdapter};
 
@@ -114,13 +114,13 @@ impl<T, const SIZE: usize> QueueAdapter<T> for MpmcBoundedQueue<T, SIZE> {
                         }
                         Err(new_pos) => pos = new_pos,
                     }
-                },
+                }
                 cmp::Ordering::Less => {
                     return Err(data);
-                },
+                }
                 cmp::Ordering::Greater => {
                     pos = self.enqueue_pos.load(Ordering::Relaxed);
-                },
+                }
             }
         }
     }
@@ -150,10 +150,10 @@ impl<T, const SIZE: usize> QueueAdapter<T> for MpmcBoundedQueue<T, SIZE> {
                         }
                         Err(new_pos) => pos = new_pos,
                     }
-                },
+                }
                 cmp::Ordering::Less => {
                     return None;
-                },
+                }
                 cmp::Ordering::Greater => {
                     pos = self.dequeue_pos.load(Ordering::Relaxed);
                 }

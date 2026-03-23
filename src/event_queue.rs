@@ -8,7 +8,7 @@ use core::sync::atomic::{AtomicBool, Ordering};
 pub trait QueueAdapter<T> {
     /// Enqueues an item to the underlying queue
     /// # Errors
-    /// If the queue is unable to enqueue the data, it will return an error. 
+    /// If the queue is unable to enqueue the data, it will return an error.
     fn enqueue(&self, data: T) -> Result<(), T>;
     fn dequeue(&self) -> Option<T>;
 }
@@ -23,7 +23,7 @@ pub struct EventProducer<'a, E, Q: QueueAdapter<E>> {
 impl<E, Q: QueueAdapter<E>> EventProducer<'_, E, Q> {
     /// Enqueues an item to the underlying queue via the producer interface
     /// # Errors
-    /// If the queue is unable to enqueue the data, it will return an error. 
+    /// If the queue is unable to enqueue the data, it will return an error.
     pub fn enqueue(&self, event: E) -> Result<(), E> {
         self.inner.enqueue(event)
     }
