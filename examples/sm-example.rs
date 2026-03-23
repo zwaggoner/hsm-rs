@@ -1,8 +1,8 @@
 extern crate rsm;
 
 use rsm::{
-    Action, Actor, ActorRuntime, Mailbox, MpmcBoundedQueue, Parent, Root, State, StateImpl,
-    StateMachineSpec, StateRef,
+    Action, Actor, ActorRuntime, Mailbox, MpmcBoundedQueue, State, StateDef,
+    StateMachineDef, StateRef, Super, Top,
 };
 
 #[derive(Debug)]
@@ -13,7 +13,7 @@ enum UserEvent {
 #[derive(Debug)]
 struct TestActor {}
 
-impl StateMachineSpec for TestActor {
+impl StateMachineDef for TestActor {
     type Event = UserEvent;
 
     fn initial(&mut self) -> State<Self> {
@@ -24,8 +24,8 @@ impl StateMachineSpec for TestActor {
 
 struct State1;
 
-impl StateImpl<State1> for TestActor {
-    type Parent = Root;
+impl StateDef<State1> for TestActor {
+    type Parent = Top;
 
     fn initial(&mut self) -> Option<State<Self>> {
         println!("State1 Initial");
@@ -44,8 +44,8 @@ impl StateImpl<State1> for TestActor {
 
 struct State11;
 
-impl StateImpl<State11> for TestActor {
-    type Parent = Parent<State1>;
+impl StateDef<State11> for TestActor {
+    type Parent = Super<State1>;
 
     fn initial(&mut self) -> Option<State<Self>> {
         println!("State11 Initial");
@@ -68,8 +68,8 @@ impl StateImpl<State11> for TestActor {
 
 struct State12;
 
-impl StateImpl<State12> for TestActor {
-    type Parent = Parent<State1>;
+impl StateDef<State12> for TestActor {
+    type Parent = Super<State1>;
 
     fn initial(&mut self) -> Option<State<Self>> {
         println!("State12 Initial");

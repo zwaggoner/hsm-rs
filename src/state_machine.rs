@@ -5,9 +5,9 @@ use core::marker::PhantomData;
 /// reference to `StateDesc`
 pub type State<Sm> = &'static StateDesc<Sm>;
 
-/// The `StateMachineSpec` trait is to be implemented by the user of the framework for any type
+/// The `StateMachineDef` trait is to be implemented by the user of the framework for any type
 /// that the user wishes to implement a state machine to manage it. The type that the user
-/// implements `StateMachineSpec` can be thought of as the "context" object for all states in the
+/// implements `StateMachineDef` can be thought of as the "context" object for all states in the
 /// state machine if used as a state machine framework, or the object for which you are
 /// implementing an actor if using the rsm framework as an actor framework. Users are required to
 /// specify:
@@ -26,7 +26,7 @@ pub type State<Sm> = &'static StateDesc<Sm>;
 /// struct MyActor;
 /// struct State1;
 ///
-/// impl StateMachineSpec for MyActor {
+/// impl StateMachineDef for MyActor {
 ///     type Event = MyEvent;
 ///
 ///     fn initial(&mut self) -> State<Self> {
@@ -34,13 +34,13 @@ pub type State<Sm> = &'static StateDesc<Sm>;
 ///     }
 /// }
 ///
-/// # impl StateImpl<State1> for MyActor {
-/// #    type Parent = Root;
+/// # impl StateDef<State1> for MyActor {
+/// #    type Parent = Top;
 /// #
 /// # }
 /// ```
 /// State1 declaration is omitted here for brevity
-pub trait StateMachineSpec: Sized {
+pub trait StateMachineDef: Sized {
     /// Event type
     type Event: 'static;
 
@@ -49,7 +49,7 @@ pub trait StateMachineSpec: Sized {
 }
 
 /// Action enum indicating how the state handler is responding to an event
-pub enum Action<Sm: StateMachineSpec + 'static> {
+pub enum Action<Sm: StateMachineDef + 'static> {
     /// The event was unhandled by the handler. This is largely used internal to the framework,
     /// but can be useful in cases where a state wants to know about an event, but also wants its
     /// parent to be able to handle it, or in match arms where certain events will be ignored by
@@ -63,7 +63,7 @@ pub enum Action<Sm: StateMachineSpec + 'static> {
     Transition(State<Sm>),
 }
 
-/// The `StateImpl` trait is to be implemented for all states in the state machine. It is
+/// The `StateDef` trait is to be implemented for all states in the state machine. It is
 /// suggested/recommended that the State objects be zero-sized structs i.e.:
 /// ```
 /// struct State1;
@@ -72,7 +72,7 @@ pub enum Action<Sm: StateMachineSpec + 'static> {
 /// else in the framework, and for program clarity it is not suggested to dual-purpose data
 /// containing structs you otherwise utilize elsewhere.
 ///
-/// `StateImpl` requires that you have implemented `StateMachineSpec`
+/// `StateDef` requires that you have implemented `StateMachineDef`
 ///
 /// Continuing our example from above: 
 ///
@@ -87,7 +87,7 @@ pub enum Action<Sm: StateMachineSpec + 'static> {
 /// #
 /// # struct MyActor;
 /// #
-/// # impl StateMachineSpec for MyActor {
+/// # impl StateMachineDef for MyActor {
 /// #    type Event = MyEvent;
 /// #
 /// #    fn initial(&mut self) -> State<Self> {
@@ -96,15 +96,15 @@ pub enum Action<Sm: StateMachineSpec + 'static> {
 /// # }
 /// # struct State2;
 /// #
-/// # impl StateImpl<State2> for MyActor {
-/// #   type Parent = Root;
+/// # impl StateDef<State2> for MyActor {
+/// #   type Parent = Top;
 /// # }
 ///
 /// struct State1;
 ///
-/// impl StateImpl<State1> for MyActor {
-///     // Use the Root type to signify this state has no parent i.e. it is a topmost (root) state.
-///     type Parent = Root;
+/// impl StateDef<State1> for MyActor {
+///     // Use the Top type to signify this state has no parent, that is it is the topmost state 
+///     type Parent = Top;
 ///
 ///     // Perform entry actions occurs whenever the state is entered (transitioned to)
 ///     fn entry(&mut self) {
@@ -127,7 +127,7 @@ pub enum Action<Sm: StateMachineSpec + 'static> {
 /// }
 /// ```
 ///
-pub trait StateImpl<S>: StateMachineSpec + Sized
+pub trait StateDef<S>: StateMachineDef + Sized
 where
     Self: 'static,
 {
@@ -147,20 +147,20 @@ where
 }
 
 mod _private {
-    use super::{StateDesc, StateMachineSpec};
+    use super::{StateDesc, StateMachineDef};
 
     pub trait Sealed {}
-    pub trait StaticStateDesc<Sm: StateMachineSpec + 'static> {
+    pub trait StaticStateDesc<Sm: StateMachineDef + 'static> {
         const STATE: StateDesc<Sm>;
     }
 }
 
 /// Sealed trait that provides the runtime glue for the parent tree
-pub trait ParentState<Sm: StateMachineSpec + 'static>: _private::Sealed {
+pub trait ParentState<Sm: StateMachineDef + 'static>: _private::Sealed {
     const OPT_STATE: Option<State<Sm>>;
 }
 
-/// Type used to indicate the Parent of a given state in the `StateImpl` declaration for example:
+/// Type used to indicate the Parent of a given state in the `StateDef` declaration for example:
 ///
 /// ```
 /// # use rsm::*;
@@ -171,7 +171,7 @@ pub trait ParentState<Sm: StateMachineSpec + 'static>: _private::Sealed {
 /// #
 /// # struct MyActor;
 /// #
-/// # impl StateMachineSpec for MyActor {
+/// # impl StateMachineDef for MyActor {
 /// #    type Event = MyEvent;
 /// #
 /// #    fn initial(&mut self) -> State<Self> {
@@ -180,52 +180,52 @@ pub trait ParentState<Sm: StateMachineSpec + 'static>: _private::Sealed {
 /// # }
 /// # struct State2;
 /// #
-/// # impl StateImpl<State2> for MyActor {
-/// #   type Parent = Root;
+/// # impl StateDef<State2> for MyActor {
+/// #   type Parent = Top;
 /// # }
 /// # struct State1;
 /// # 
-/// # impl StateImpl<State1> for MyActor {
+/// # impl StateDef<State1> for MyActor {
 ///     // State2 is the parent state of State1
-///     type Parent = Parent<State2>;
+///     type Parent = Super<State2>;
 /// # }
 /// ```
-pub struct Parent<S>(PhantomData<S>);
+pub struct Super<S>(PhantomData<S>);
 
 /// Type used to indicate that a state has no parents, that is the state is a top-level state in
 /// the state machine.
-pub struct Root;
+pub struct Top;
 
-impl<S> _private::Sealed for Parent<S> {}
-impl _private::Sealed for Root {}
+impl<S> _private::Sealed for Super<S> {}
+impl _private::Sealed for Top {}
 
-impl<Sm: StateMachineSpec + 'static, S: 'static + _private::StaticStateDesc<Sm>> ParentState<Sm>
-    for Parent<S>
+impl<Sm: StateMachineDef + 'static, S: 'static + _private::StaticStateDesc<Sm>> ParentState<Sm>
+    for Super<S>
 {
     const OPT_STATE: Option<State<Sm>> = Some(&S::STATE);
 }
 
-impl<Sm: StateMachineSpec + 'static> ParentState<Sm> for Root {
+impl<Sm: StateMachineDef + 'static> ParentState<Sm> for Top {
     const OPT_STATE: Option<State<Sm>> = None;
 }
 
 /// Trait that provides a convenience wrapper for getting the runtime state descriptor object
-pub trait StateRef<Sm: StateMachineSpec + 'static>: _private::StaticStateDesc<Sm> {
+pub trait StateRef<Sm: StateMachineDef + 'static>: _private::StaticStateDesc<Sm> {
     fn state() -> State<Sm>;
 }
 
-impl<S: 'static, Sm: StateImpl<S> + 'static> _private::StaticStateDesc<Sm> for S {
+impl<S: 'static, Sm: StateDef<S> + 'static> _private::StaticStateDesc<Sm> for S {
     const STATE: StateDesc<Sm> = StateDesc::<Sm> {
         id: core::any::TypeId::of::<(Sm, S)>(),
         parent: Sm::Parent::OPT_STATE,
-        initial: <Sm as StateImpl<S>>::initial,
+        initial: <Sm as StateDef<S>>::initial,
         entry: Sm::entry,
         handler: Sm::handler,
         exit: Sm::exit,
     };
 }
 
-impl<S: 'static + _private::StaticStateDesc<Sm>, Sm: StateMachineSpec + 'static> StateRef<Sm>
+impl<S: 'static + _private::StaticStateDesc<Sm>, Sm: StateMachineDef + 'static> StateRef<Sm>
     for S
 {
     fn state() -> State<Sm> {
@@ -235,7 +235,7 @@ impl<S: 'static + _private::StaticStateDesc<Sm>, Sm: StateMachineSpec + 'static>
 
 #[doc(hidden)]
 #[derive(Debug)]
-pub struct StateDesc<Sm: StateMachineSpec + 'static> {
+pub struct StateDesc<Sm: StateMachineDef + 'static> {
     id: core::any::TypeId,
     pub(crate) parent: Option<State<Sm>>,
     pub(crate) initial: fn(&mut Sm) -> Option<State<Sm>>,
@@ -244,7 +244,7 @@ pub struct StateDesc<Sm: StateMachineSpec + 'static> {
     pub(crate) exit: fn(&mut Sm),
 }
 
-impl<Sm: StateMachineSpec> PartialEq for StateDesc<Sm> {
+impl<Sm: StateMachineDef> PartialEq for StateDesc<Sm> {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
     }

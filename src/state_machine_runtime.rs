@@ -1,5 +1,5 @@
 use crate::fixed_vec::FixedVec;
-use crate::state_machine::{Action, State, StateMachineSpec};
+use crate::state_machine::{Action, State, StateMachineDef};
 use core::marker::PhantomData;
 
 mod _private {
@@ -19,7 +19,7 @@ impl _private::Sealed for Run {}
 impl RunState for Run {}
 
 pub struct StateMachine<
-    Sm: StateMachineSpec + 'static,
+    Sm: StateMachineDef + 'static,
     const MAX_NEST_DEPTH: usize = 8,
     S: RunState = Init,
 > {
@@ -27,7 +27,7 @@ pub struct StateMachine<
     _pd: PhantomData<S>,
 }
 
-impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize, S: RunState>
+impl<Sm: StateMachineDef, const MAX_NEST_DEPTH: usize, S: RunState>
     StateMachine<Sm, MAX_NEST_DEPTH, S>
 {
     fn get_path(state: State<Sm>) -> FixedVec<State<Sm>, MAX_NEST_DEPTH> {
@@ -130,7 +130,7 @@ impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize, S: RunState>
     }
 }
 
-impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize> Default
+impl<Sm: StateMachineDef, const MAX_NEST_DEPTH: usize> Default
     for StateMachine<Sm, MAX_NEST_DEPTH, Init>
 {
     fn default() -> Self {
@@ -138,7 +138,7 @@ impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize> Default
     }
 }
 
-impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize> StateMachine<Sm, MAX_NEST_DEPTH, Init> {
+impl<Sm: StateMachineDef, const MAX_NEST_DEPTH: usize> StateMachine<Sm, MAX_NEST_DEPTH, Init> {
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -148,7 +148,7 @@ impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize> StateMachine<Sm, MAX_NES
     }
 
     pub fn initial(mut self, context: &mut Sm) -> StateMachine<Sm, MAX_NEST_DEPTH, Run> {
-        let target = <Sm as StateMachineSpec>::initial(context);
+        let target = <Sm as StateMachineDef>::initial(context);
         self.transition(context, target);
 
         StateMachine::<Sm, MAX_NEST_DEPTH, Run> {
@@ -158,7 +158,7 @@ impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize> StateMachine<Sm, MAX_NES
     }
 }
 
-impl<Sm: StateMachineSpec, const MAX_NEST_DEPTH: usize> StateMachine<Sm, MAX_NEST_DEPTH, Run> {
+impl<Sm: StateMachineDef, const MAX_NEST_DEPTH: usize> StateMachine<Sm, MAX_NEST_DEPTH, Run> {
     pub fn dispatch(&mut self, context: &mut Sm, event: &Sm::Event) {
         for state in self.path.iter().rev() {
             match (state.handler)(context, event) {
