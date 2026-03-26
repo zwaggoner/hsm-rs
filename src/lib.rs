@@ -19,7 +19,7 @@ mod state_machine;
 mod state_machine_runtime;
 
 pub use actor::{Actor, ActorRuntime};
-pub use event_queue::{EventConsumer, EventProducer, Mailbox, QueueAdapter};
+pub use event_queue::{EventProducer, EventQueue, QueueAdapter};
 pub use mpmc_bounded_queue::MpmcBoundedQueue;
 pub use runtime::{Cooperative, Runtime, Superloop};
 pub use state_machine::{Action, State, StateDef, StateMachineDef, StateRef, Super, Top};

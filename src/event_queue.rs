@@ -15,16 +15,62 @@ pub trait QueueAdapter<T> {
 
 pub trait MultiProducer {}
 
+pub struct EventQueue<E, Q: QueueAdapter<E>> {
+    inner: Q,
+    producer_split: AtomicBool,
+    consumer_split: AtomicBool,
+    _pd: PhantomData<E>,
+}
+
 pub struct EventProducer<'a, E, Q: QueueAdapter<E>> {
     inner: &'a Q,
-    _pd: PhantomData<E>,
+    _pd: PhantomData<E>
+}
+
+impl<E, Q: QueueAdapter<E>> EventQueue<E, Q> {
+    pub const fn new(queue: Q) -> Self {
+        Self {
+            inner: queue,
+            producer_split: AtomicBool::new(false),
+            consumer_split: AtomicBool::new(false),
+            _pd: PhantomData,
+        }
+    }
+
+    pub fn producer(&self) -> Option<EventProducer<'_, E, Q>> {
+        self.producer_split
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .ok()?;
+
+        Some(EventProducer {
+            inner: &self.inner,
+            _pd: PhantomData::<E>::default(),
+        })
+    }
+
+    pub(crate) fn consumer(&self) -> Option<EventConsumer<'_, E, Q>> {
+        self.consumer_split
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .ok()?;
+
+        Some(EventConsumer {
+            inner: &self.inner,
+            _pd: PhantomData::<E>::default(),
+        })
+    }
+}
+
+impl<E, Q: QueueAdapter<E> + MultiProducer> EventQueue<E, Q> {
+    pub fn enqueue(&self, data: E) -> Result<(), E> {
+        self.inner.enqueue(data)
+    }
 }
 
 impl<E, Q: QueueAdapter<E>> EventProducer<'_, E, Q> {
     /// Enqueues an item to the underlying queue via the producer interface
     /// # Errors
     /// If the queue is unable to enqueue the data, it will return an error.
-    pub fn enqueue(&self, event: E) -> Result<(), E> {
+    pub fn enqueue(&mut self, event: E) -> Result<(), E> {
         self.inner.enqueue(event)
     }
 }
@@ -38,7 +84,7 @@ impl<E, Q: QueueAdapter<E> + MultiProducer> Clone for EventProducer<'_, E, Q> {
     }
 }
 
-pub struct EventConsumer<'a, E, Q: QueueAdapter<E>> {
+pub(crate) struct EventConsumer<'a, E, Q> {
     inner: &'a Q,
     _pd: PhantomData<E>,
 }
@@ -46,39 +92,6 @@ pub struct EventConsumer<'a, E, Q: QueueAdapter<E>> {
 impl<E, Q: QueueAdapter<E>> EventConsumer<'_, E, Q> {
     pub(crate) fn dequeue(&self) -> Option<E> {
         self.inner.dequeue()
-    }
-}
-
-pub struct Mailbox<E, Q: QueueAdapter<E>> {
-    inner: Q,
-    split: AtomicBool,
-    _pd: PhantomData<E>,
-}
-
-impl<E, Q: QueueAdapter<E>> Mailbox<E, Q> {
-    pub const fn new(queue: Q) -> Self {
-        Self {
-            inner: queue,
-            split: AtomicBool::new(false),
-            _pd: PhantomData::<E>,
-        }
-    }
-
-    pub fn split(&self) -> Option<(EventProducer<'_, E, Q>, EventConsumer<'_, E, Q>)> {
-        self.split
-            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-            .ok()?;
-
-        Some((
-            EventProducer::<E, Q> {
-                inner: &self.inner,
-                _pd: PhantomData::<E>,
-            },
-            EventConsumer::<E, Q> {
-                inner: &self.inner,
-                _pd: PhantomData::<E>,
-            },
-        ))
     }
 }
 

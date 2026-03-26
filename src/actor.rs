@@ -1,4 +1,4 @@
-use crate::event_queue::{EventConsumer, QueueAdapter};
+use crate::event_queue::{EventConsumer, EventQueue, QueueAdapter};
 use crate::state_machine::StateMachineDef;
 use crate::state_machine_runtime::{Init, Run, StateMachine};
 
@@ -57,11 +57,11 @@ pub struct Actor<
 impl<'a, Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usize>
     Actor<'a, Sm, Q, MAX_NEST_DEPTH>
 {
-    pub fn new(context: Sm, event_consumer: EventConsumer<'a, Sm::Event, Q>) -> Self {
+    pub fn new(context: Sm, event_queue: &'a EventQueue<Sm::Event, Q>) -> Self {
         Self {
             context,
             sm: CurrSM::default(),
-            event_consumer,
+            event_consumer: event_queue.consumer().unwrap(),
             next_event: None,
             initialized: false,
         }

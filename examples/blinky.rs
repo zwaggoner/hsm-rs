@@ -18,7 +18,7 @@ use hal::{
 };
 
 use rsm::{
-    Action, Actor, EventProducer, Mailbox, MpmcBoundedQueue, Runtime, State, StateDef,
+    Action, Actor, EventQueue, MpmcBoundedQueue, Runtime, State, StateDef,
     StateMachineDef, StateRef, Super, Superloop, Top,
 };
 
@@ -163,10 +163,9 @@ impl StateDef<LedOff> for Blinky {
 
 type BlinkEventQueue = MpmcBoundedQueue<BlinkEvent, 32>;
 
-static MAILBOX: Mailbox<BlinkEvent, BlinkEventQueue> = Mailbox::new(BlinkEventQueue::new());
+static EVT_QUEUE: EventQueue<BlinkEvent, BlinkEventQueue> = EventQueue::new(BlinkEventQueue::new());
 
 struct Shared {
-    producer: EventProducer<'static, BlinkEvent, BlinkEventQueue>,
     blink_timer: CounterMs<TIM2>,
     debounce_timer: CounterMs<TIM3>,
     button: gpio::PC13<Input>,
@@ -176,9 +175,10 @@ static SHARED: Mutex<RefCell<Option<Shared>>> = Mutex::new(RefCell::new(None));
 
 #[interrupt]
 fn TIM2() {
+    let _ = EVT_QUEUE.enqueue(BlinkEvent::Timeout);
+
     cortex_m::interrupt::free(|cs| {
         if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
-            let _ = shared.producer.enqueue(BlinkEvent::Timeout);
             shared.blink_timer.clear_all_flags();
         }
     });
@@ -186,9 +186,10 @@ fn TIM2() {
 
 #[interrupt]
 fn TIM3() {
+    let _ = EVT_QUEUE.enqueue(BlinkEvent::DebounceTimeout);
+
     cortex_m::interrupt::free(|cs| {
         if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
-            let _ = shared.producer.enqueue(BlinkEvent::DebounceTimeout);
             let _ = shared.debounce_timer.cancel();
             shared.debounce_timer.clear_all_flags();
         }
@@ -200,10 +201,11 @@ fn EXTI15_10() {
     cortex_m::interrupt::free(|cs| {
         if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
             cortex_m::peripheral::NVIC::mask(shared.button.interrupt());
-            let _ = shared.producer.enqueue(BlinkEvent::ButtonPress);
             shared.button.clear_interrupt_pending_bit();
         }
     });
+
+    let _ = EVT_QUEUE.enqueue(BlinkEvent::ButtonPress);
 }
 
 #[entry]
@@ -245,13 +247,9 @@ fn main() -> ! {
             cortex_m::peripheral::NVIC::unmask(button.interrupt());
         }
 
-        // Get the producer and consumer handles for the actor mailbox
-        let (producer, consumer) = MAILBOX.split().unwrap();
-
         // Configure the shared object with everything needed in the ISR context
         cortex_m::interrupt::free(|cs| {
             SHARED.borrow(cs).replace(Some(Shared {
-                producer,
                 blink_timer,
                 debounce_timer,
                 button,
@@ -259,7 +257,7 @@ fn main() -> ! {
         });
 
         // Configure the blinky actor with the context object and consumer
-        let mut actor = Actor::<Blinky, BlinkEventQueue>::new(context, consumer);
+        let mut actor = Actor::<Blinky, BlinkEventQueue>::new(context, &EVT_QUEUE);
 
         Superloop::new(
             [&mut actor],
