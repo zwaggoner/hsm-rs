@@ -8,7 +8,7 @@ use core::sync::atomic::{AtomicBool, Ordering};
 ///
 /// The framework cannot guarantee that your queue is free from data races. The API is designed to
 /// promote correct utilization of queues and consumer/producer handles at the callsite, but, if
-/// the underlying queue is unsafe, so is the implementation. 
+/// the underlying queue is unsafe, so is the implementation.
 pub trait QueueAdapter<T> {
     /// Enqueues an item to the underlying queue
     /// # Errors
@@ -26,7 +26,7 @@ pub trait QueueAdapter<T> {
 pub trait MultiProducer {}
 
 /// Adapter object to hold the underlying event queue and provide a common interface to the Actor
-/// objects. 
+/// objects.
 pub struct EventQueue<E, Q: QueueAdapter<E>> {
     inner: Q,
     producer_split: AtomicBool,
