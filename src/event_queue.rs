@@ -90,14 +90,14 @@ pub(crate) struct EventConsumer<'a, E, Q> {
 }
 
 impl<E, Q: QueueAdapter<E>> EventConsumer<'_, E, Q> {
-    pub(crate) fn dequeue(&self) -> Option<E> {
+    pub(crate) fn dequeue(&mut self) -> Option<E> {
         self.inner.dequeue()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Mailbox, MultiProducer, QueueAdapter};
+    use super::{EventQueue, MultiProducer, QueueAdapter};
     use core::cell::Cell;
 
     struct TestQueue {
@@ -132,18 +132,27 @@ mod tests {
     impl MultiProducer for TestQueue {}
 
     #[test]
-    fn mailbox_split_only_succeeds_once() {
-        let mailbox = Mailbox::<u32, _>::new(TestQueue::new());
+    fn producer_split_only_succeeds_once() {
+        let queue = EventQueue::<u32, _>::new(TestQueue::new());
 
-        assert!(mailbox.split().is_some());
-        assert!(mailbox.split().is_none());
+        assert!(queue.producer().is_some());
+        assert!(queue.producer().is_none());
+    }
+
+    #[test]
+    fn consumer_split_only_succeeds_once() {
+        let queue = EventQueue::<u32, _>::new(TestQueue::new());
+
+        assert!(queue.consumer().is_some());
+        assert!(queue.consumer().is_none());
     }
 
     #[test]
     fn cloned_producers_can_enqueue() {
-        let mailbox = Mailbox::<u32, _>::new(TestQueue::new());
-        let (producer, consumer) = mailbox.split().expect("first split should succeed");
-        let producer_clone = producer.clone();
+        let queue = EventQueue::<u32, _>::new(TestQueue::new());
+        let mut producer = queue.producer().expect("first producer call should succeed");
+        let mut consumer = queue.consumer().expect("first consumer call should succeed");
+        let mut producer_clone = producer.clone();
 
         assert_eq!(producer.enqueue(7), Ok(()));
         assert_eq!(producer_clone.enqueue(8), Err(8));
