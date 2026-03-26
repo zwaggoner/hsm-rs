@@ -50,7 +50,7 @@ impl<E, Q: QueueAdapter<E>> EventQueue<E, Q> {
         }
     }
 
-    pub fn producer(&self) -> Option<EventProducer<'_, E, Q>> {
+    pub fn take_producer(&self) -> Option<EventProducer<'_, E, Q>> {
         self.producer_split
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .ok()?;
@@ -61,7 +61,7 @@ impl<E, Q: QueueAdapter<E>> EventQueue<E, Q> {
         })
     }
 
-    pub(crate) fn consumer(&self) -> Option<EventConsumer<'_, E, Q>> {
+    pub(crate) fn take_consumer(&self) -> Option<EventConsumer<'_, E, Q>> {
         self.consumer_split
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .ok()?;
@@ -148,29 +148,29 @@ mod tests {
     impl MultiProducer for TestQueue {}
 
     #[test]
-    fn producer_split_only_succeeds_once() {
+    fn take_producer_only_succeeds_once() {
         let queue = EventQueue::<u32, _>::new(TestQueue::new());
 
-        assert!(queue.producer().is_some());
-        assert!(queue.producer().is_none());
+        assert!(queue.take_producer().is_some());
+        assert!(queue.take_producer().is_none());
     }
 
     #[test]
-    fn consumer_split_only_succeeds_once() {
+    fn take_consumer_only_succeeds_once() {
         let queue = EventQueue::<u32, _>::new(TestQueue::new());
 
-        assert!(queue.consumer().is_some());
-        assert!(queue.consumer().is_none());
+        assert!(queue.take_consumer().is_some());
+        assert!(queue.take_consumer().is_none());
     }
 
     #[test]
     fn cloned_producers_can_enqueue() {
         let queue = EventQueue::<u32, _>::new(TestQueue::new());
         let mut producer = queue
-            .producer()
+            .take_producer()
             .expect("first producer call should succeed");
         let mut consumer = queue
-            .consumer()
+            .take_consumer()
             .expect("first consumer call should succeed");
         let mut producer_clone = producer.clone();
 

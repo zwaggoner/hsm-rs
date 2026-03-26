@@ -66,7 +66,7 @@ impl<'a, Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: 
         Self {
             context,
             sm: CurrSM::default(),
-            event_consumer: event_queue.consumer().expect("EventConsumer already taken"),
+            event_consumer: event_queue.take_consumer().expect("EventConsumer already taken"),
             next_event: None,
             initialized: false,
         }
