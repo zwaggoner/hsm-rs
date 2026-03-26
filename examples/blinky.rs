@@ -18,8 +18,8 @@ use hal::{
 };
 
 use rsm::{
-    Action, Actor, EventQueue, MpmcBoundedQueue, Runtime, State, StateDef,
-    StateMachineDef, StateRef, Super, Superloop, Top,
+    Action, Actor, EventQueue, MpmcBoundedQueue, Runtime, State, StateDef, StateMachineDef,
+    StateRef, Super, Superloop, Top,
 };
 
 #[derive(Debug)]

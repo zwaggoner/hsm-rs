@@ -6,9 +6,9 @@
 //! the understanding of a for a first-time rust developer. The goal of this framework was primarily to be educational for the
 //! author, there are other rust state machine/actor frameworks that may be more suitable for your
 //! purpose.
-//! 
+//!
 //! To get started with this framework, please look at the examples for [`StateMachineDef`] followed by
-//! [`StateDef`]. 
+//! [`StateDef`].
 
 mod actor;
 mod event_queue;

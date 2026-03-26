@@ -24,7 +24,7 @@ pub struct EventQueue<E, Q: QueueAdapter<E>> {
 
 pub struct EventProducer<'a, E, Q: QueueAdapter<E>> {
     inner: &'a Q,
-    _pd: PhantomData<E>
+    _pd: PhantomData<E>,
 }
 
 impl<E, Q: QueueAdapter<E>> EventQueue<E, Q> {
@@ -150,8 +150,12 @@ mod tests {
     #[test]
     fn cloned_producers_can_enqueue() {
         let queue = EventQueue::<u32, _>::new(TestQueue::new());
-        let mut producer = queue.producer().expect("first producer call should succeed");
-        let mut consumer = queue.consumer().expect("first consumer call should succeed");
+        let mut producer = queue
+            .producer()
+            .expect("first producer call should succeed");
+        let mut consumer = queue
+            .consumer()
+            .expect("first consumer call should succeed");
         let mut producer_clone = producer.clone();
 
         assert_eq!(producer.enqueue(7), Ok(()));

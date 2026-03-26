@@ -9,13 +9,13 @@ mod _private {
 /// Sealed trait marker for [`Run`] and [`Init`]
 pub trait RunState: _private::Sealed {}
 
-/// Marker for [`StateMachine`] indicating that it is in the `Init` phase. 
+/// Marker for [`StateMachine`] indicating that it is in the `Init` phase.
 pub struct Init {}
 
 impl _private::Sealed for Init {}
 impl RunState for Init {}
 
-/// Marker for [`StateMachine`] indicating that it is in the `Run` phase. 
+/// Marker for [`StateMachine`] indicating that it is in the `Run` phase.
 pub struct Run {}
 
 impl _private::Sealed for Run {}
@@ -25,7 +25,7 @@ impl RunState for Run {}
 /// execution. The `Sm` (state machine) object implementing [`StateMachineDef`] must be supplied.
 /// There is also an optional `MAX_NEST_DEPTH` which is defaulted to 8, and can be adjusted if the
 /// user requires more deeply nested state machines, or reduced to reduce runtime footprint if
-/// appropriate, and deeper state machines are not needed. 
+/// appropriate, and deeper state machines are not needed.
 pub struct StateMachine<
     Sm: StateMachineDef + 'static,
     const MAX_NEST_DEPTH: usize = 8,
