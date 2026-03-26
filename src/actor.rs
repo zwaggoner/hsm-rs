@@ -86,7 +86,11 @@ impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usiz
         let mut step_status: StepStatus = StepStatus::Idle;
 
         if let CurrSM::Run(sm) = &mut self.sm {
-            if let Some(event) = self.next_event.take().or_else(|| { self.event_consumer.dequeue() }) {
+            if let Some(event) = self
+                .next_event
+                .take()
+                .or_else(|| self.event_consumer.dequeue())
+            {
                 sm.dispatch(&mut self.context, &event);
                 step_status = StepStatus::Ran { pending: false };
             }
