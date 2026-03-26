@@ -57,11 +57,16 @@ pub struct Actor<
 impl<'a, Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usize>
     Actor<'a, Sm, Q, MAX_NEST_DEPTH>
 {
+    /// Constructs a new actor given its context object and underlying event queue
+    ///
+    /// # Panics
+    /// The `EventQueue` is limited to a single consumer. If the consumer has already been taken for
+    /// the queue by another actor, the constructor will panic.
     pub fn new(context: Sm, event_queue: &'a EventQueue<Sm::Event, Q>) -> Self {
         Self {
             context,
             sm: CurrSM::default(),
-            event_consumer: event_queue.consumer().unwrap(),
+            event_consumer: event_queue.consumer().expect("EventConsumer already taken"),
             next_event: None,
             initialized: false,
         }

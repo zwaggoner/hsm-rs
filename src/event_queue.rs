@@ -4,7 +4,11 @@ use core::sync::atomic::{AtomicBool, Ordering};
 /// `QueueAdapter` trait is made available such that any underlying queue that implements it can be
 /// used as an event queue in the rsm framework.
 /// `QueueAdapter` queues are required to implement interior mutability such that the
-/// consumer/producer split can be managed cleanly by the framework no matter the underlying queue
+/// consumer/producer split can be managed cleanly by the framework no matter the underlying queue.
+///
+/// The framework cannot guarantee that your queue is free from data races. The API is designed to
+/// promote correct utilization of queues and consumer/producer handles at the callsite, but, if
+/// the underlying queue is unsafe, so is the implementation. 
 pub trait QueueAdapter<T> {
     /// Enqueues an item to the underlying queue
     /// # Errors
@@ -13,8 +17,16 @@ pub trait QueueAdapter<T> {
     fn dequeue(&self) -> Option<T>;
 }
 
+/// Capability trait indicating that a Queue implementing queue adapter is a multi-producer queue.
+/// Please only implement this trait if you absolutely understand the implications: there can be
+/// multiple simultaneous writers to the same underlying queue. The word simultaneous is key here:
+/// if you are used to writing queues for embedded systems that exploit critical sections, they are
+/// typically not truly multi-producer queues. If you implement the critical section yourself inside of the
+/// queue, they may be safe to mark as multi-producer, but be cautious.
 pub trait MultiProducer {}
 
+/// Adapter object to hold the underlying event queue and provide a common interface to the Actor
+/// objects. 
 pub struct EventQueue<E, Q: QueueAdapter<E>> {
     inner: Q,
     producer_split: AtomicBool,
@@ -22,6 +34,7 @@ pub struct EventQueue<E, Q: QueueAdapter<E>> {
     _pd: PhantomData<E>,
 }
 
+/// `EventProducer` handle object
 pub struct EventProducer<'a, E, Q: QueueAdapter<E>> {
     inner: &'a Q,
     _pd: PhantomData<E>,
@@ -61,6 +74,9 @@ impl<E, Q: QueueAdapter<E>> EventQueue<E, Q> {
 }
 
 impl<E, Q: QueueAdapter<E> + MultiProducer> EventQueue<E, Q> {
+    /// Enqueues an item to the underlying queue via the producer interface
+    /// # Errors
+    /// If the queue is unable to enqueue the data, it will return an error.
     pub fn enqueue(&self, data: E) -> Result<(), E> {
         self.inner.enqueue(data)
     }
