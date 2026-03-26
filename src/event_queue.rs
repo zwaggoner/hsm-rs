@@ -44,7 +44,7 @@ impl<E, Q: QueueAdapter<E>> EventQueue<E, Q> {
 
         Some(EventProducer {
             inner: &self.inner,
-            _pd: PhantomData::<E>::default(),
+            _pd: PhantomData,
         })
     }
 
@@ -55,7 +55,7 @@ impl<E, Q: QueueAdapter<E>> EventQueue<E, Q> {
 
         Some(EventConsumer {
             inner: &self.inner,
-            _pd: PhantomData::<E>::default(),
+            _pd: PhantomData,
         })
     }
 }
