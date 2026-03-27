@@ -19,7 +19,7 @@ pub trait QueueAdapter<T> {
     /// If the queue is unable to enqueue the data, it will return an error.
     fn enqueue(&self, data: T) -> Result<(), T>;
 
-    /// Dequeues an item from the underlying queue, returns `None` if the queue is empty. 
+    /// Dequeues an item from the underlying queue, returns `None` if the queue is empty.
     fn dequeue(&self) -> Option<T>;
 }
 
@@ -60,7 +60,7 @@ impl<E, Q: QueueAdapter<E>> EventQueue<E, Q> {
     }
 
     /// Takes the producer handle from the queue. Note this can only be performed once so this
-    /// function will return `None` if the producer has already been taken. 
+    /// function will return `None` if the producer has already been taken.
     pub fn take_producer(&self) -> Option<EventProducer<'_, E, Q>> {
         self.producer_split
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
