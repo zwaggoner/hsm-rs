@@ -1,4 +1,4 @@
-use crate::fixed_vec::FixedVec;
+use crate::util::fixed_vec::FixedVec;
 use crate::state_machine::{Action, State, StateMachineDef};
 use core::marker::PhantomData;
 

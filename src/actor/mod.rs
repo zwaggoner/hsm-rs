@@ -1,6 +1,8 @@
-use crate::event_queue::{EventConsumer, EventQueue, QueueAdapter};
-use crate::state_machine::StateMachineDef;
-use crate::state_machine_runtime::{Init, Run, StateMachine};
+pub mod queue;
+pub mod runtime;
+
+use self::queue::{EventConsumer, EventQueue, QueueAdapter};
+use crate::state_machine::{StateMachineDef, Init, Run, StateMachine};
 
 pub trait ActorRuntime {
     fn initialized(&self) -> bool;

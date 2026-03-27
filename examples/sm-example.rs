@@ -1,8 +1,10 @@
 extern crate rsm;
 
 use rsm::{
-    Action, Actor, ActorRuntime, EventQueue, MpmcBoundedQueue, State, StateDef, StateMachineDef,
-    StateRef, Super, Top,
+    actor::{Actor, ActorRuntime,
+        queue::{EventQueue, MpmcBoundedQueue}
+    },
+    Action, State, StateDef, StateMachineDef, StateRef, Super, Top,
 };
 
 #[derive(Debug)]

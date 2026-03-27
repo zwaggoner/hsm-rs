@@ -2,7 +2,7 @@ use core::cell::UnsafeCell;
 use core::cmp;
 use core::mem::MaybeUninit;
 
-use crate::event_queue::{MultiProducer, QueueAdapter};
+use super::{MultiProducer, QueueAdapter};
 
 #[cfg(not(all(test, feature = "loom-tests")))]
 use core::sync::atomic::{AtomicUsize, Ordering};

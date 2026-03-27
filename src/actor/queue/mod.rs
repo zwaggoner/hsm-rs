@@ -1,3 +1,7 @@
+mod mpmc_bounded_queue;
+
+pub use self::mpmc_bounded_queue::*;
+
 use core::marker::PhantomData;
 use core::sync::atomic::{AtomicBool, Ordering};
 

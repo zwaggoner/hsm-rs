@@ -10,17 +10,8 @@
 //! To get started with this framework, please look at the examples for [`StateMachineDef`] followed by
 //! [`StateDef`].
 
-mod actor;
-mod event_queue;
-mod fixed_vec;
-mod mpmc_bounded_queue;
-mod runtime;
+pub mod actor;
 mod state_machine;
-mod state_machine_runtime;
+mod util;
 
-pub use actor::{Actor, ActorRuntime};
-pub use event_queue::{EventProducer, EventQueue, QueueAdapter};
-pub use mpmc_bounded_queue::MpmcBoundedQueue;
-pub use runtime::{Cooperative, Runtime, Superloop};
-pub use state_machine::{Action, State, StateDef, StateMachineDef, StateRef, Super, Top};
-pub use state_machine_runtime::{Init, Run, StateMachine};
+pub use crate::state_machine::*;
