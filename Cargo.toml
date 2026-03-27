@@ -1,6 +1,11 @@
 [package]
 name = "rsm"
 version = "0.0.1"
+repository = "https://github.com/zwaggoner/rsm"
+readme = "README.md"
+license = "MIT"
+keywords = ["state-machine", "statechart", "embedded"]
+categories = ["embedded", "no-std"]
 edition = "2024"
 
 [features]
