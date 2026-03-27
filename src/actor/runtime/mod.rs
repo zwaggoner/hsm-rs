@@ -35,7 +35,7 @@ pub struct Cooperative<'a, const NUM_ACTORS: usize> {
 
 impl<'a, const NUM_ACTORS: usize> Superloop<'a, NUM_ACTORS> {
     /// Construct a new Superloop scheduler. The order of `actors` is the order that the superloop
-    /// executes the actors. The idle_task is run in the case where there were no actors that did
+    /// executes the actors. The `idle_task` is run in the case where there were no actors that did
     /// work in the iteration of the superloop.
     pub fn new(actors: [&'a mut dyn ActorRuntime; NUM_ACTORS], idle_task: Option<fn()>) -> Self {
         Self {
@@ -62,7 +62,7 @@ impl<'a, const NUM_ACTORS: usize> Superloop<'a, NUM_ACTORS> {
 
 impl<'a, const NUM_ACTORS: usize> Cooperative<'a, NUM_ACTORS> {
     /// Construct a new Cooperative scheduler. The order of `actors` is the priority order for the
-    /// scheduler. The idle_task is run in the case where there were no actors that did
+    /// scheduler. The `idle_task` is run in the case where there were no actors that did
     /// work in the iteration of the superloop.
     pub fn new(actors: [&'a mut dyn ActorRuntime; NUM_ACTORS], idle_task: Option<fn()>) -> Self {
         Self {
