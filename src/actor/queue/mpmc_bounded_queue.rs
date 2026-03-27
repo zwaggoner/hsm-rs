@@ -176,7 +176,7 @@ unsafe impl<T: Send, const N: usize> Sync for MpmcBoundedQueue<T, N> {}
 #[cfg(all(test, feature = "loom-tests"))]
 mod tests {
     use super::MpmcBoundedQueue;
-    use crate::event_queue::QueueAdapter;
+    use crate::actor::queue::QueueAdapter;
     use loom::sync::Arc;
     use loom::sync::atomic::{AtomicUsize, Ordering};
     use loom::thread;
