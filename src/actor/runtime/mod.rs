@@ -36,7 +36,7 @@ pub struct Cooperative<'a, const NUM_ACTORS: usize> {
 impl<'a, const NUM_ACTORS: usize> Superloop<'a, NUM_ACTORS> {
     /// Construct a new Superloop scheduler. The order of `actors` is the order that the superloop
     /// executes the actors. The idle_task is run in the case where there were no actors that did
-    /// work in the iteration of the superloop. 
+    /// work in the iteration of the superloop.
     pub fn new(actors: [&'a mut dyn ActorRuntime; NUM_ACTORS], idle_task: Option<fn()>) -> Self {
         Self {
             inner: ToSchedule::new(actors, idle_task),
@@ -44,7 +44,7 @@ impl<'a, const NUM_ACTORS: usize> Superloop<'a, NUM_ACTORS> {
     }
 
     /// Run method for the superloop scheduler. Note that this function never returns, once the
-    /// actors are run they will execute in the context where you run this function. 
+    /// actors are run they will execute in the context where you run this function.
     pub fn run(&mut self) -> ! {
         loop {
             let mut ran: bool = false;
@@ -61,9 +61,9 @@ impl<'a, const NUM_ACTORS: usize> Superloop<'a, NUM_ACTORS> {
 }
 
 impl<'a, const NUM_ACTORS: usize> Cooperative<'a, NUM_ACTORS> {
-    /// Construct a new Cooperative scheduler. The order of `actors` is the priority order for the 
+    /// Construct a new Cooperative scheduler. The order of `actors` is the priority order for the
     /// scheduler. The idle_task is run in the case where there were no actors that did
-    /// work in the iteration of the superloop. 
+    /// work in the iteration of the superloop.
     pub fn new(actors: [&'a mut dyn ActorRuntime; NUM_ACTORS], idle_task: Option<fn()>) -> Self {
         Self {
             inner: ToSchedule::new(actors, idle_task),
@@ -71,7 +71,7 @@ impl<'a, const NUM_ACTORS: usize> Cooperative<'a, NUM_ACTORS> {
     }
 
     /// Run method for the cooperative scheduler. Note that this function never returns, once the
-    /// actors are run they will execute in the context where you run this function. 
+    /// actors are run they will execute in the context where you run this function.
     pub fn run(&mut self) -> ! {
         // For cooperative scheduler since runtime isn't guaranteed, initialize first
         for a in &mut self.inner.actors {
@@ -98,4 +98,3 @@ impl<'a, const NUM_ACTORS: usize> Cooperative<'a, NUM_ACTORS> {
         }
     }
 }
-

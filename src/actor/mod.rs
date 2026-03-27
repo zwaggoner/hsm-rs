@@ -1,8 +1,8 @@
 /// The `queue` module provides some framework-compliant queue backends, as well
-/// as adapter traits to be able to adapt your own queue or a RTOS queue.queue 
+/// as adapter traits to be able to adapt your own queue or a RTOS queue.queue
 pub mod queue;
 
-///The `runtime` module provides some different scheduling disciplines for the actor run-to-completion steps. 
+///The `runtime` module provides some different scheduling disciplines for the actor run-to-completion steps.
 pub mod runtime;
 
 use self::queue::{EventConsumer, EventQueue, QueueAdapter};
@@ -21,14 +21,14 @@ pub trait ActorRuntime {
 /// `enum` indicating the result of the run to completion step
 pub enum StepStatus {
     /// Indicates that the actor was initialized on the call to `step`. The `pending` field
-    /// indicates if there is an event pending. 
+    /// indicates if there is an event pending.
     Initialized { pending: bool },
 
     /// Indicates that the actor dispatched an event on the call to `step`. The `pending` field
-    /// indicates if there is an event pending. 
+    /// indicates if there is an event pending.
     Ran { pending: bool },
 
-    /// Indicates that there was no work done and no events to dispatch on the call to `step`. 
+    /// Indicates that there was no work done and no events to dispatch on the call to `step`.
     Idle,
 }
 
@@ -67,7 +67,7 @@ impl<Sm: StateMachineDef, const MAX_NEST_DEPTH: usize> Default for CurrSM<Sm, MA
 }
 
 /// Actor object housing the underlying state machine, context object and event queue for
-/// orchestrating actor behavior. 
+/// orchestrating actor behavior.
 pub struct Actor<
     'a,
     Sm: StateMachineDef + 'static,
