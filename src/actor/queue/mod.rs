@@ -18,6 +18,8 @@ pub trait QueueAdapter<T> {
     /// # Errors
     /// If the queue is unable to enqueue the data, it will return an error.
     fn enqueue(&self, data: T) -> Result<(), T>;
+
+    /// Dequeues an item from the underlying queue, returns `None` if the queue is empty. 
     fn dequeue(&self) -> Option<T>;
 }
 
@@ -45,6 +47,9 @@ pub struct EventProducer<'a, E, Q: QueueAdapter<E>> {
 }
 
 impl<E, Q: QueueAdapter<E>> EventQueue<E, Q> {
+    /// Constructs a new `EventQueue` from the underlying `QueueAdapter` compliant queue. The
+    /// function is `const` so that the mailbox can be constructed directly in a static context so
+    /// the `EventQueue` is suitable for use in ISRs.
     pub const fn new(queue: Q) -> Self {
         Self {
             inner: queue,
@@ -54,6 +59,8 @@ impl<E, Q: QueueAdapter<E>> EventQueue<E, Q> {
         }
     }
 
+    /// Takes the producer handle from the queue. Note this can only be performed once so this
+    /// function will return `None` if the producer has already been taken. 
     pub fn take_producer(&self) -> Option<EventProducer<'_, E, Q>> {
         self.producer_split
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
@@ -78,7 +85,7 @@ impl<E, Q: QueueAdapter<E>> EventQueue<E, Q> {
 }
 
 impl<E, Q: QueueAdapter<E> + MultiProducer> EventQueue<E, Q> {
-    /// Enqueues an item to the underlying queue via the producer interface
+    /// Enqueues an item to the underlying queue directly on the event queue.  
     /// # Errors
     /// If the queue is unable to enqueue the data, it will return an error.
     pub fn enqueue(&self, data: E) -> Result<(), E> {
@@ -96,6 +103,7 @@ impl<E, Q: QueueAdapter<E>> EventProducer<'_, E, Q> {
 }
 
 impl<E, Q: QueueAdapter<E> + MultiProducer> Clone for EventProducer<'_, E, Q> {
+    /// Clones the `EventProducer` only if the underlying queue is `MultiProducer`
     fn clone(&self) -> Self {
         Self {
             inner: self.inner,
