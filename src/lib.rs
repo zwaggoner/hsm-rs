@@ -15,6 +15,5 @@ mod state_machine;
 mod util;
 
 pub use crate::state_machine::{
-    Action, ParentState, State, StateDef, StateMachine, StateMachineDef, StateRef, Super, Top
+    Action, ParentState, State, StateDef, StateMachine, StateMachineDef, StateRef, Super, Top,
 };
-    
