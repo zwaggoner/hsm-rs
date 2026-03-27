@@ -95,13 +95,17 @@ impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usiz
                 .or_else(|| self.event_consumer.dequeue())
             {
                 sm.dispatch(&mut self.context, &event);
-                
-                return StepStatus::Ran { pending: self.prefetch_event() };
+
+                return StepStatus::Ran {
+                    pending: self.prefetch_event(),
+                };
             }
         } else if let CurrSM::Init(sm) = core::mem::take(&mut self.sm) {
             self.sm = CurrSM::Run(sm.initial(&mut self.context));
             self.initialized = true;
-            return StepStatus::Initialized { pending: self.prefetch_event() };
+            return StepStatus::Initialized {
+                pending: self.prefetch_event(),
+            };
         }
 
         StepStatus::Idle
