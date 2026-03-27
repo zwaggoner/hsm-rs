@@ -73,6 +73,11 @@ impl<'a, Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: 
             initialized: false,
         }
     }
+
+    fn prefetch_event(&mut self) -> bool {
+        self.next_event = self.event_consumer.dequeue();
+        self.next_event.is_some()
+    }
 }
 
 impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usize> ActorRuntime
@@ -83,8 +88,6 @@ impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usiz
     }
 
     fn step(&mut self) -> StepStatus {
-        let mut step_status: StepStatus = StepStatus::Idle;
-
         if let CurrSM::Run(sm) = &mut self.sm {
             if let Some(event) = self
                 .next_event
@@ -92,22 +95,15 @@ impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usiz
                 .or_else(|| self.event_consumer.dequeue())
             {
                 sm.dispatch(&mut self.context, &event);
-                step_status = StepStatus::Ran { pending: false };
+                
+                return StepStatus::Ran { pending: self.prefetch_event() };
             }
         } else if let CurrSM::Init(sm) = core::mem::take(&mut self.sm) {
             self.sm = CurrSM::Run(sm.initial(&mut self.context));
-            step_status = StepStatus::Initialized { pending: false };
             self.initialized = true;
+            return StepStatus::Initialized { pending: self.prefetch_event() };
         }
 
-        match &mut step_status {
-            StepStatus::Ran { pending } | StepStatus::Initialized { pending } => {
-                self.next_event = self.event_consumer.dequeue();
-                *pending = self.next_event.is_some();
-            }
-            StepStatus::Idle => (),
-        }
-
-        step_status
+        StepStatus::Idle
     }
 }
