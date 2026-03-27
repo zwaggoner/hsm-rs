@@ -16,10 +16,12 @@ pub enum StepStatus {
 }
 
 impl StepStatus {
+    #[must_use]
     pub fn is_idle(&self) -> bool {
         matches!(self, StepStatus::Idle)
     }
 
+    #[must_use]
     pub fn is_pending(&self) -> bool {
         match self {
             StepStatus::Initialized { pending } | StepStatus::Ran { pending } => *pending,
@@ -27,6 +29,7 @@ impl StepStatus {
         }
     }
 
+    #[must_use]
     pub fn did_work(&self) -> bool {
         !self.is_idle()
     }
