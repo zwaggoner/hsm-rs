@@ -1,5 +1,5 @@
-use crate::util::fixed_vec::FixedVec;
 use crate::state_machine::{Action, State, StateMachineDef};
+use crate::util::fixed_vec::FixedVec;
 use core::marker::PhantomData;
 
 mod _private {
