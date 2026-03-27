@@ -10,6 +10,9 @@
 //! To get started with this framework, please look at the examples for [`StateMachineDef`] followed by
 //! [`StateDef`].
 
+/// The `actor` module provides wrappers around state machine objects to provide an active-object
+/// (actor) framework. The actors include event queue integration, and simple run-to-completion
+/// `step` semantics.  
 pub mod actor;
 mod state_machine;
 mod util;

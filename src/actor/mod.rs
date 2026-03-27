@@ -1,26 +1,45 @@
+/// The `queue` module provides some framework-compliant queue backends, as well
+/// as adapter traits to be able to adapt your own queue or a RTOS queue.queue 
 pub mod queue;
+
+///The `runtime` module provides some different scheduling disciplines for the actor run-to-completion steps. 
 pub mod runtime;
 
 use self::queue::{EventConsumer, EventQueue, QueueAdapter};
 use crate::state_machine::{Init, Run, StateMachine, StateMachineDef};
 
+/// Traits required to schedule an actor
 pub trait ActorRuntime {
+    /// Indicates if actor is initialized after any potential initialization actions. This is only
+    /// relevant for schedulers that treat initialization as different from runtime scheduling.
     fn initialized(&self) -> bool;
+
+    /// Implements the run-to-completion step for the actor
     fn step(&mut self) -> StepStatus;
 }
 
+/// `enum` indicating the result of the run to completion step
 pub enum StepStatus {
+    /// Indicates that the actor was initialized on the call to `step`. The `pending` field
+    /// indicates if there is an event pending. 
     Initialized { pending: bool },
+
+    /// Indicates that the actor dispatched an event on the call to `step`. The `pending` field
+    /// indicates if there is an event pending. 
     Ran { pending: bool },
+
+    /// Indicates that there was no work done and no events to dispatch on the call to `step`. 
     Idle,
 }
 
 impl StepStatus {
+    /// Function returning if the `StepStatus` is `Idle`
     #[must_use]
     pub fn is_idle(&self) -> bool {
         matches!(self, StepStatus::Idle)
     }
 
+    /// Function returning if `StepStatus` indicates that there is a pending event
     #[must_use]
     pub fn is_pending(&self) -> bool {
         match self {
@@ -29,6 +48,7 @@ impl StepStatus {
         }
     }
 
+    /// Function returning if `StepStatus` indicates that there was work done
     #[must_use]
     pub fn did_work(&self) -> bool {
         !self.is_idle()
@@ -46,6 +66,8 @@ impl<Sm: StateMachineDef, const MAX_NEST_DEPTH: usize> Default for CurrSM<Sm, MA
     }
 }
 
+/// Actor object housing the underlying state machine, context object and event queue for
+/// orchestrating actor behavior. 
 pub struct Actor<
     'a,
     Sm: StateMachineDef + 'static,

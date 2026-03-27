@@ -22,7 +22,7 @@ use rsm::{
     actor::{
         Actor,
         queue::{EventQueue, MpmcBoundedQueue},
-        runtime::{Runtime, Superloop},
+        runtime::Superloop,
     },
 };
 
