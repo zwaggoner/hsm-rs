@@ -2,10 +2,7 @@ extern crate rsm;
 
 use rsm::{
     Action, State, StateDef, StateMachineDef, StateRef, Super, Top,
-    actor::{
-        Actor, ActorRuntime,
-        queue::MpmcBoundedQueue,
-    },
+    actor::{Actor, ActorRuntime, queue::MpmcBoundedQueue},
 };
 
 #[derive(Debug)]
@@ -94,7 +91,10 @@ impl StateDef<State12> for TestActor {
 }
 
 fn main() {
-    let actor = Actor::<TestActor, MpmcBoundedQueue<UserEvent, 32>>::new(MpmcBoundedQueue::<UserEvent, 32>::default());
+    let actor = Actor::<TestActor, MpmcBoundedQueue<UserEvent, 32>>::new(MpmcBoundedQueue::<
+        UserEvent,
+        32,
+    >::default());
 
     actor.enqueue(UserEvent::TestEvent).unwrap();
     actor.enqueue(UserEvent::TestEvent).unwrap();

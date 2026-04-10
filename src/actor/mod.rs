@@ -108,12 +108,15 @@ impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usiz
     }
 
     pub fn take_producer(&self) -> Option<EventProducer<'_, Sm::Event, Q>> {
-        self.event_queue.take_producer() 
+        self.event_queue.take_producer()
     }
 
     pub fn bind(&self, context: Sm) -> RuntimeActor<'_, Sm, Q, MAX_NEST_DEPTH> {
         RuntimeActor {
-            event_consumer: self.event_queue.take_consumer().expect("Actor has already been bound."),
+            event_consumer: self
+                .event_queue
+                .take_consumer()
+                .expect("Actor has already been bound."),
             context,
             sm: CurrSM::default(),
             next_event: None,
@@ -133,7 +136,9 @@ impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event> + MultiProducer, const MAX_
     }
 }
 
-impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usize> RuntimeActor<'_, Sm, Q, MAX_NEST_DEPTH> {
+impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usize>
+    RuntimeActor<'_, Sm, Q, MAX_NEST_DEPTH>
+{
     fn prefetch_event(&mut self) -> bool {
         self.next_event = self.event_consumer.dequeue();
         self.next_event.is_some()
