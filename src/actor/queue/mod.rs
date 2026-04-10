@@ -33,7 +33,7 @@ pub trait MultiProducer {}
 
 /// Adapter object to hold the underlying event queue and provide a common interface to the Actor
 /// objects.
-pub struct EventQueue<E, Q: QueueAdapter<E>> {
+pub(crate) struct EventQueue<E, Q: QueueAdapter<E>> {
     inner: Q,
     producer_split: AtomicBool,
     consumer_split: AtomicBool,
@@ -50,7 +50,7 @@ impl<E, Q: QueueAdapter<E>> EventQueue<E, Q> {
     /// Constructs a new `EventQueue` from the underlying `QueueAdapter` compliant queue. The
     /// function is `const` so that the mailbox can be constructed directly in a static context so
     /// the `EventQueue` is suitable for use in ISRs.
-    pub const fn new(queue: Q) -> Self {
+    pub(crate) const fn new(queue: Q) -> Self {
         Self {
             inner: queue,
             producer_split: AtomicBool::new(false),
@@ -61,7 +61,7 @@ impl<E, Q: QueueAdapter<E>> EventQueue<E, Q> {
 
     /// Takes the producer handle from the queue. Note this can only be performed once so this
     /// function will return `None` if the producer has already been taken.
-    pub fn take_producer(&self) -> Option<EventProducer<'_, E, Q>> {
+    pub(crate) fn take_producer(&self) -> Option<EventProducer<'_, E, Q>> {
         self.producer_split
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .ok()?;

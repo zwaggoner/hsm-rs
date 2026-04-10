@@ -21,7 +21,7 @@ use rsm::{
     Action, State, StateDef, StateMachineDef, StateRef, Super, Top,
     actor::{
         Actor,
-        queue::{EventQueue, MpmcBoundedQueue},
+        queue::MpmcBoundedQueue,
         runtime::Superloop,
     },
 };
@@ -167,7 +167,7 @@ impl StateDef<LedOff> for Blinky {
 
 type BlinkEventQueue = MpmcBoundedQueue<BlinkEvent, 32>;
 
-static EVT_QUEUE: EventQueue<BlinkEvent, BlinkEventQueue> = EventQueue::new(BlinkEventQueue::new());
+static ACTOR: Actor<Blinky, BlinkEventQueue> = Actor::new(BlinkEventQueue::new());
 
 struct Shared {
     blink_timer: CounterMs<TIM2>,
@@ -179,7 +179,7 @@ static SHARED: Mutex<RefCell<Option<Shared>>> = Mutex::new(RefCell::new(None));
 
 #[interrupt]
 fn TIM2() {
-    let _ = EVT_QUEUE.enqueue(BlinkEvent::Timeout);
+    let _ = ACTOR.enqueue(BlinkEvent::Timeout);
 
     cortex_m::interrupt::free(|cs| {
         if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
@@ -190,7 +190,7 @@ fn TIM2() {
 
 #[interrupt]
 fn TIM3() {
-    let _ = EVT_QUEUE.enqueue(BlinkEvent::DebounceTimeout);
+    let _ = ACTOR.enqueue(BlinkEvent::DebounceTimeout);
 
     cortex_m::interrupt::free(|cs| {
         if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
@@ -209,7 +209,7 @@ fn EXTI15_10() {
         }
     });
 
-    let _ = EVT_QUEUE.enqueue(BlinkEvent::ButtonPress);
+    let _ = ACTOR.enqueue(BlinkEvent::ButtonPress);
 }
 
 #[entry]
@@ -261,10 +261,8 @@ fn main() -> ! {
         });
 
         // Configure the blinky actor with the context object and consumer
-        let mut actor = Actor::<Blinky, BlinkEventQueue>::new(context, &EVT_QUEUE);
-
         Superloop::new(
-            [&mut actor],
+            [&mut ACTOR.bind(context)],
             Some(|| {
                 cortex_m::asm::wfi();
             }),

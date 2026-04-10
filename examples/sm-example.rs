@@ -4,7 +4,7 @@ use rsm::{
     Action, State, StateDef, StateMachineDef, StateRef, Super, Top,
     actor::{
         Actor, ActorRuntime,
-        queue::{EventQueue, MpmcBoundedQueue},
+        queue::MpmcBoundedQueue,
     },
 };
 
@@ -94,14 +94,13 @@ impl StateDef<State12> for TestActor {
 }
 
 fn main() {
-    let context = TestActor {};
-    let queue = EventQueue::new(MpmcBoundedQueue::<UserEvent, 32>::default());
+    let actor = Actor::<TestActor, MpmcBoundedQueue<UserEvent, 32>>::new(MpmcBoundedQueue::<UserEvent, 32>::default());
 
-    let mut actor = Actor::<TestActor, MpmcBoundedQueue<UserEvent, 32>>::new(context, &queue);
+    actor.enqueue(UserEvent::TestEvent).unwrap();
+    actor.enqueue(UserEvent::TestEvent).unwrap();
+    actor.enqueue(UserEvent::TestEvent).unwrap();
 
-    queue.enqueue(UserEvent::TestEvent).unwrap();
-    queue.enqueue(UserEvent::TestEvent).unwrap();
-    queue.enqueue(UserEvent::TestEvent).unwrap();
+    let mut actor_rt = actor.bind(TestActor {});
 
-    while actor.step().did_work() {}
+    while actor_rt.step().did_work() {}
 }
