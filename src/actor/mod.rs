@@ -96,10 +96,6 @@ impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usiz
     Actor<Sm, Q, MAX_NEST_DEPTH>
 {
     /// Constructs a new actor given its context object and underlying event queue
-    ///
-    /// # Panics
-    /// The `EventQueue` is limited to a single consumer. If the consumer has already been taken for
-    /// the queue by another actor, the constructor will panic.
     pub const fn new(queue: Q) -> Self {
         Self {
             event_queue: EventQueue::new(queue),
@@ -107,10 +103,18 @@ impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usiz
         }
     }
 
+    /// Takes the event producer for the actor. Can only be taken once, if the underlying queue is
+    /// [`MultiProducer`], the [`EventProducer`] object can be cloned. 
     pub fn take_producer(&self) -> Option<EventProducer<'_, Sm::Event, Q>> {
         self.event_queue.take_producer()
     }
 
+    /// Binds the actor to its context object and produces the runtime actor.
+    ///
+    /// # Panics
+    /// The Actor can only be bound once. If the actor has already been bound, the bind function
+    /// will panic, as this represents a configuration error in the framework, not a resolvable
+    /// runtime error. 
     pub fn bind(&self, context: Sm) -> RuntimeActor<'_, Sm, Q, MAX_NEST_DEPTH> {
         RuntimeActor {
             event_consumer: self
@@ -128,7 +132,8 @@ impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usiz
 impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event> + MultiProducer, const MAX_NEST_DEPTH: usize>
     Actor<Sm, Q, MAX_NEST_DEPTH>
 {
-    /// Enqueues an item to the underlying queue directly on the event queue.  
+    /// Enqueues an item to the underlying queue directly on the actor's event queue. This method is
+    /// only available if the underlying queue is [`MultiProducer`]
     /// # Errors
     /// If the queue is unable to enqueue the data, it will return an error.
     pub fn enqueue(&self, data: Sm::Event) -> Result<(), Sm::Event> {
