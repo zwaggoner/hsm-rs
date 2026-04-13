@@ -100,7 +100,7 @@ impl<T, const SIZE: usize> QueueAdapter<T> for MpmcBoundedQueue<T, SIZE> {
                 cmp::Ordering::Equal => {
                     match self.enqueue_pos.compare_exchange_weak(
                         pos,
-                        pos + 1,
+                        pos.wrapping_add(1),
                         Ordering::Relaxed,
                         Ordering::Relaxed,
                     ) {
@@ -109,7 +109,7 @@ impl<T, const SIZE: usize> QueueAdapter<T> for MpmcBoundedQueue<T, SIZE> {
                                 (*slot.data.get()).write(data);
                             }
 
-                            slot.sequence.store(pos + 1, Ordering::Release);
+                            slot.sequence.store(pos.wrapping_add(1), Ordering::Release);
                             return Ok(());
                         }
                         Err(new_pos) => pos = new_pos,
@@ -132,25 +132,25 @@ impl<T, const SIZE: usize> QueueAdapter<T> for MpmcBoundedQueue<T, SIZE> {
             let slot = &self.buffer[pos & Self::BUFFER_MASK];
             let seq = slot.sequence.load(Ordering::Acquire);
 
-            let dif: isize = seq.cast_signed() - (pos + 1).cast_signed();
+            let dif: isize = seq.cast_signed() - pos.wrapping_add(1).cast_signed();
 
             match dif.cmp(&0) {
                 cmp::Ordering::Equal => {
                     match self.dequeue_pos.compare_exchange_weak(
                         pos,
-                        pos + 1,
+                        pos.wrapping_add(1),
                         Ordering::Relaxed,
                         Ordering::Relaxed,
                     ) {
                         Ok(_) => {
                             let data = unsafe { (*slot.data.get()).assume_init_read() };
 
-                            slot.sequence.store(pos + SIZE, Ordering::Release);
+                            slot.sequence.store(pos.wrapping_add(SIZE), Ordering::Release);
                             return Some(data);
                         }
                         Err(new_pos) => pos = new_pos,
                     }
-                }
+                } 
                 cmp::Ordering::Less => {
                     return None;
                 }
