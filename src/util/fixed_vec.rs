@@ -33,10 +33,16 @@ impl<T, const MAX_DEPTH: usize> FixedVec<T, MAX_DEPTH> {
 
         self.len -= 1;
 
+        // SAFETY: the internal array is initialized up to `len`, therefore when we pop an element,
+        // it is returned here only once after pop has decremented `len` to signal the memory
+        // location is now free for use.
         Some(unsafe { self.arr[self.len].assume_init_read() })
     }
 
     pub(crate) fn clear(&mut self) {
+        // SAFETY: the internal array is initialized up to `len`, therefore to clear, since there is
+        // no receiver for the cleared elements like in pop, the array is constructed as a slice up
+        // to `len` and dropped in place exactly once.
         unsafe {
             ptr::drop_in_place(ptr::slice_from_raw_parts_mut(
                 self.arr.as_mut_ptr().cast::<T>(),
@@ -58,12 +64,17 @@ impl<T, const MAX_DEPTH: usize> Deref for FixedVec<T, MAX_DEPTH> {
     type Target = [T];
 
     fn deref(&self) -> &[T] {
+        // SAFETY: The internal array is initialized up to `len` and therefore is safe to access via
+        // a slice up to `len`. 
         unsafe { slice::from_raw_parts(self.arr.as_ptr().cast::<T>(), self.len) }
     }
 }
 
 impl<T, const MAX_DEPTH: usize> DerefMut for FixedVec<T, MAX_DEPTH> {
     fn deref_mut(&mut self) -> &mut [T] {
+        // SAFETY: The internal array is initialized up to `len` and therefore is safe to access via
+        // a slice up to `len`. If a mutable reference can be obtained to FixedVec, the underlying
+        // array is also safe to mutate up to `len`.  
         unsafe { slice::from_raw_parts_mut(self.arr.as_mut_ptr().cast::<T>(), self.len) }
     }
 }
