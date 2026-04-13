@@ -109,7 +109,10 @@ impl<Sm: StateMachineDef, const MAX_NEST_DEPTH: usize, S: RunState>
             };
 
             if child_initial_transition {
-                assert!(enter_exit_target == self.path.len(), "Initial transition targets must point to a new child state, detected differing parent tree in initial transition");
+                assert!(
+                    enter_exit_target == self.path.len(),
+                    "Initial transition targets must point to a new child state, detected differing parent tree in initial transition"
+                );
             }
 
             // Exit to LCA
@@ -124,7 +127,10 @@ impl<Sm: StateMachineDef, const MAX_NEST_DEPTH: usize, S: RunState>
 
                 if let Some(target) = transition_target {
                     child_initial_transition = true;
-                    assert!(!self.path.contains(&target), "Initial transition targets must point to a new child state, detected initial transition to state already in state hierarchy");
+                    assert!(
+                        !self.path.contains(&target),
+                        "Initial transition targets must point to a new child state, detected initial transition to state already in state hierarchy"
+                    );
                 }
             }
         }

@@ -104,7 +104,7 @@ impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usiz
     }
 
     /// Takes the event producer for the actor. Can only be taken once, if the underlying queue is
-    /// [`MultiProducer`], the [`EventProducer`] object can be cloned. 
+    /// [`MultiProducer`], the [`EventProducer`] object can be cloned.
     pub fn take_producer(&self) -> Option<EventProducer<'_, Sm::Event, Q>> {
         self.event_queue.take_producer()
     }
@@ -114,7 +114,7 @@ impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usiz
     /// # Panics
     /// The Actor can only be bound once. If the actor has already been bound, the bind function
     /// will panic, as this represents a configuration error in the framework, not a resolvable
-    /// runtime error. 
+    /// runtime error.
     pub fn bind(&self, context: Sm) -> RuntimeActor<'_, Sm, Q, MAX_NEST_DEPTH> {
         RuntimeActor {
             event_consumer: self
