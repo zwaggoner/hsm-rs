@@ -94,7 +94,7 @@ impl<T, const SIZE: usize> QueueAdapter<T> for MpmcBoundedQueue<T, SIZE> {
         loop {
             let slot = &self.buffer[pos & Self::BUFFER_MASK];
             let seq = slot.sequence.load(Ordering::Acquire);
-            let dif: isize = seq.cast_signed() - pos.cast_signed();
+            let dif: isize = seq.cast_signed().wrapping_sub(pos.cast_signed());
 
             match dif.cmp(&0) {
                 cmp::Ordering::Equal => {
@@ -132,7 +132,7 @@ impl<T, const SIZE: usize> QueueAdapter<T> for MpmcBoundedQueue<T, SIZE> {
             let slot = &self.buffer[pos & Self::BUFFER_MASK];
             let seq = slot.sequence.load(Ordering::Acquire);
 
-            let dif: isize = seq.cast_signed() - pos.wrapping_add(1).cast_signed();
+            let dif: isize = seq.cast_signed().wrapping_sub(pos.wrapping_add(1).cast_signed());
 
             match dif.cmp(&0) {
                 cmp::Ordering::Equal => {
