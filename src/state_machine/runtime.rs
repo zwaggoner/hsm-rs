@@ -94,6 +94,7 @@ impl<Sm: StateMachineDef, const MAX_NEST_DEPTH: usize, S: RunState>
     }
 
     fn transition(&mut self, context: &mut Sm, target: State<Sm>) {
+        let mut child_initial_transition = false;
         let mut transition_target = Some(target);
 
         while let Some(state) = transition_target {
@@ -107,6 +108,10 @@ impl<Sm: StateMachineDef, const MAX_NEST_DEPTH: usize, S: RunState>
                 0
             };
 
+            if child_initial_transition {
+                assert!(enter_exit_target == self.path.len(), "Initial transition targets must point to a new child state, detected differing parent tree in initial transition");
+            }
+
             // Exit to LCA
             self.exit_to(context, enter_exit_target);
 
@@ -116,6 +121,11 @@ impl<Sm: StateMachineDef, const MAX_NEST_DEPTH: usize, S: RunState>
             // Check for initial transition in leaf state
             if let Some(leaf_state) = self.path.last() {
                 transition_target = (leaf_state.initial)(context);
+
+                if let Some(target) = transition_target {
+                    child_initial_transition = true;
+                    assert!(!self.path.contains(&target), "Initial transition targets must point to a new child state, detected initial transition to state already in state hierarchy");
+                }
             }
         }
     }
