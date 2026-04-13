@@ -65,7 +65,7 @@ impl<T, const MAX_DEPTH: usize> Deref for FixedVec<T, MAX_DEPTH> {
 
     fn deref(&self) -> &[T] {
         // SAFETY: The internal array is initialized up to `len` and therefore is safe to access via
-        // a slice up to `len`. 
+        // a slice up to `len`.
         unsafe { slice::from_raw_parts(self.arr.as_ptr().cast::<T>(), self.len) }
     }
 }
@@ -74,7 +74,7 @@ impl<T, const MAX_DEPTH: usize> DerefMut for FixedVec<T, MAX_DEPTH> {
     fn deref_mut(&mut self) -> &mut [T] {
         // SAFETY: The internal array is initialized up to `len` and therefore is safe to access via
         // a slice up to `len`. If a mutable reference can be obtained to FixedVec, the underlying
-        // array is also safe to mutate up to `len`.  
+        // array is also safe to mutate up to `len`.
         unsafe { slice::from_raw_parts_mut(self.arr.as_mut_ptr().cast::<T>(), self.len) }
     }
 }

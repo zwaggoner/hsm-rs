@@ -106,7 +106,7 @@ impl<T, const SIZE: usize> QueueAdapter<T> for MpmcBoundedQueue<T, SIZE> {
                     ) {
                         Ok(_) => {
                             // SAFETY: Since this call to enqueue has won exclusive access to the
-                            // slot, it is now safe to gain mutable access and write the data. 
+                            // slot, it is now safe to gain mutable access and write the data.
                             unsafe {
                                 (*slot.data.get()).write(data);
                             }
@@ -148,7 +148,7 @@ impl<T, const SIZE: usize> QueueAdapter<T> for MpmcBoundedQueue<T, SIZE> {
                     ) {
                         Ok(_) => {
                             // SAFETY: Since this call to dequeue has won exclusive access to the
-                            // slot, and the slot has to have been initialized by enqueue, it is now safe to gain access and read the data. 
+                            // slot, and the slot has to have been initialized by enqueue, it is now safe to gain access and read the data.
                             let data = unsafe { (*slot.data.get()).assume_init_read() };
 
                             slot.sequence
@@ -181,7 +181,7 @@ impl<T, const N: usize> MultiProducer for MpmcBoundedQueue<T, N> {}
 unsafe impl<T: Send, const N: usize> Send for MpmcBoundedQueue<T, N> {}
 
 // SAFETY: Safe to Sync because interior access is guarded by atomics, underlying values are not
-// shared by reference between threads.  
+// shared by reference between threads.
 unsafe impl<T: Send, const N: usize> Sync for MpmcBoundedQueue<T, N> {}
 
 #[cfg(all(test, feature = "loom-tests"))]
