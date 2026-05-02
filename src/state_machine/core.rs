@@ -158,6 +158,7 @@ mod _private {
 /// Sealed trait that provides the runtime glue for the parent tree
 pub trait ParentState<Sm: StateMachineDef + 'static>: _private::Sealed {
     const OPT_STATE: Option<State<Sm>>;
+    const OPT_DEPTH: Option<usize>;
 }
 
 /// Type used to indicate the Parent of a given state in the `StateDef` declaration for example:
@@ -199,14 +200,24 @@ pub struct Top;
 impl<S> _private::Sealed for Super<S> {}
 impl _private::Sealed for Top {}
 
-impl<Sm: StateMachineDef + 'static, S: 'static + _private::StaticStateDesc<Sm>> ParentState<Sm>
+const fn next_depth(curr_opt_depth: Option<usize>) -> Option<usize> {
+    if let Some(curr_depth) = curr_opt_depth {
+        Some(curr_depth + 1)
+    } else {
+        Some(0usize)
+    }
+}
+
+impl<Sm: StateDef<S> + 'static, S: 'static + _private::StaticStateDesc<Sm>> ParentState<Sm>
     for Super<S>
 {
     const OPT_STATE: Option<State<Sm>> = Some(&S::STATE);
+    const OPT_DEPTH: Option<usize> = next_depth(<Sm as StateDef<S>>::Parent::OPT_DEPTH);
 }
 
 impl<Sm: StateMachineDef + 'static> ParentState<Sm> for Top {
     const OPT_STATE: Option<State<Sm>> = None;
+    const OPT_DEPTH: Option<usize> = None;
 }
 
 /// Trait that provides a convenience wrapper for getting the runtime state descriptor object
@@ -217,6 +228,7 @@ pub trait StateRef<Sm: StateMachineDef + 'static>: _private::StaticStateDesc<Sm>
 impl<S: 'static, Sm: StateDef<S> + 'static> _private::StaticStateDesc<Sm> for S {
     const STATE: StateDesc<Sm> = StateDesc::<Sm> {
         id: core::any::TypeId::of::<(Sm, S)>(),
+        depth: next_depth(Sm::Parent::OPT_DEPTH).unwrap(),
         parent: Sm::Parent::OPT_STATE,
         initial: <Sm as StateDef<S>>::initial,
         entry: Sm::entry,
@@ -235,6 +247,7 @@ impl<S: 'static + _private::StaticStateDesc<Sm>, Sm: StateMachineDef + 'static> 
 #[derive(Debug)]
 pub struct StateDesc<Sm: StateMachineDef + 'static> {
     id: core::any::TypeId,
+    pub(crate) depth: usize,
     pub(crate) parent: Option<State<Sm>>,
     pub(crate) initial: fn(&mut Sm) -> Option<State<Sm>>,
     pub(crate) entry: fn(&mut Sm),
