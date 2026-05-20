@@ -1,7 +1,7 @@
 extern crate rsm;
 
 use rsm::{
-    Action, State, StateDef, StateMachineDef, StateRef, Super, Top,
+    Action, Depth, State, StateDef, StateMachineDef, StateRef, Super, Top,
     actor::{Actor, ActorRuntime, queue::MpmcBoundedQueue},
 };
 
@@ -15,6 +15,7 @@ struct TestActor {}
 
 impl StateMachineDef for TestActor {
     type Event = UserEvent;
+    type MaxDepth = Depth<Self, 8>;
 
     fn initial(&mut self) -> State<Self> {
         println!("TestActor Initial");

@@ -3,7 +3,7 @@ use core::ops::{Deref, DerefMut};
 use core::ptr;
 use core::slice;
 
-pub(crate) struct FixedVec<T, const MAX_DEPTH: usize = 32> {
+pub struct FixedVec<T, const MAX_DEPTH: usize = 32> {
     arr: [MaybeUninit<T>; MAX_DEPTH],
     len: usize,
 }
