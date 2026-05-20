@@ -15,7 +15,7 @@ struct TestActor {}
 
 impl StateMachineDef for TestActor {
     type Event = UserEvent;
-    type MaxDepth = Depth<Self, 8>;
+    type MaxDepth = Depth<Self, 2>;
 
     fn initial(&mut self) -> State<Self> {
         println!("TestActor Initial");
