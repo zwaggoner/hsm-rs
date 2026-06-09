@@ -1,19 +1,9 @@
 /// This module contains most of the core state machine traits and definitions
 use core::marker::PhantomData;
-use crate::util::fixed_vec::FixedVec;
 
 /// `State` helper/wrapper type utilized throughout the framework as syntactic sugar for the a
 /// reference to `StateDesc`
 pub type State<Sm> = &'static StateDesc<Sm>;
-
-pub struct Depth<Sm: StateMachineDef, const MAX_DEPTH: usize> {
-    _pd: PhantomData<Sm>,
-}
-
-impl<Sm: StateMachineDef + 'static, const MAX_DEPTH: usize> _private::StatePath<Sm> for Depth<Sm, MAX_DEPTH> {
-    type Storage = FixedVec<State<Sm>, MAX_DEPTH>;
-    const MAX_DEPTH: usize = MAX_DEPTH;
-}
 
 /// The `StateMachineDef` trait is to be implemented by the user of the framework for any type
 /// that the user wishes to implement a state machine to manage it. The type that the user
@@ -55,7 +45,7 @@ pub trait StateMachineDef: Sized {
     type Event: 'static;
 
     /// Depth Specification
-    type MaxDepth: _private::StatePath<Self>;
+    const MAX_NEST_DEPTH: usize = 8;
 
     /// Overall state machine initial transition (executed exactly once per state machine).
     fn initial(&mut self) -> State<Self>;
@@ -166,11 +156,6 @@ mod _private {
     pub trait StaticStateDesc<Sm: StateMachineDef + 'static> {
         const STATE: StateDesc<Sm>;
     }
-
-    pub trait StatePath<Sm: StateMachineDef> {
-        type Storage;
-        const MAX_DEPTH: usize;
-    }
 }
 
 /// Sealed trait that provides the runtime glue for the parent tree
@@ -220,7 +205,7 @@ impl _private::Sealed for Top {}
 
 const fn get_depth<Sm: StateDef<S> + 'static, S: 'static + _private::StaticStateDesc<Sm>>() -> usize {
     let depth = <Sm as StateDef<S>>::Parent::DEPTH + 1;
-    assert!(depth <= <Sm::MaxDepth as _private::StatePath<Sm>>::MAX_DEPTH, "Depth of state has exceeded the configured MaxDepth");
+    assert!(depth <= Sm::MAX_NEST_DEPTH, "Depth of state has exceeded the configured MAX_NEST_DEPTH");
 
     depth
 }
