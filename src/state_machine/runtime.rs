@@ -112,10 +112,12 @@ impl<Sm: StateMachineDef, const MAX_NEST_DEPTH: usize, S: RunState>
                 }
             }
             else if let Some(dest_parent) = dest.parent && dest.depth > source_state.depth {
-                self.transition_recurse(context, Some(source_state), dest_parent, false);
+                if dest_parent != source_state && dest_parent.parent != source_state.parent {
+                    self.transition_recurse(context, Some(source_state), dest_parent, false);
+                }
             }
             else {
-                assert!(true, "Unexpected state hierarchy");
+                assert!(false, "Unexpected state hierarchy");
             }
         }
         else {
