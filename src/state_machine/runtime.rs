@@ -31,6 +31,7 @@ pub struct StateMachine<
     const MAX_NEST_DEPTH: usize = 8,
     S: RunState = Init,
 > {
+    curr_state: Option<State<Sm>>,
     path: FixedVec<State<Sm>, MAX_NEST_DEPTH>,
     _pd: PhantomData<S>,
 }
@@ -93,7 +94,50 @@ impl<Sm: StateMachineDef, const MAX_NEST_DEPTH: usize, S: RunState>
         Some(last_common_ancestor)
     }
 
+    fn transition_recurse(&mut self, context: &mut Sm, source: Option<State<Sm>>, dest: State<Sm>, leaf: bool) {
+        if let Some(mut source_state) = source {
+            if source_state.depth >= dest.depth {
+                while source_state.depth > dest.depth {
+                    (source_state.exit)(context);
+
+                    source_state = source_state.parent.expect("Unexpectedly null source parent");
+                }
+
+                if !(!leaf && source_state == dest) {
+                    (source_state.exit)(context);
+                }
+
+                if source_state.parent != dest.parent {
+                    self.transition_recurse(context, source_state.parent, dest.parent.expect("Unexpectedly null destination parent"), false);
+                }
+            }
+            else if let Some(dest_parent) = dest.parent && dest.depth > source_state.depth {
+                self.transition_recurse(context, Some(source_state), dest_parent, false);
+            }
+            else {
+                assert!(true, "Unexpected state hierarchy");
+            }
+        }
+        else {
+            if let Some(parent) = dest.parent {
+                self.transition_recurse(context, source, parent, false);
+            }
+        }
+
+        (dest.entry)(context);
+
+        if leaf {
+            self.curr_state = Some(dest);
+
+            if let Some(target) = (dest.initial)(context) {
+                self.transition_recurse(context, self.curr_state, target, true);
+            }
+        }
+    }
+
     fn transition(&mut self, context: &mut Sm, target: State<Sm>) {
+        self.transition_recurse(context, self.curr_state, target, true);
+        /*
         let mut child_initial_transition = false;
         let mut transition_target = Some(target);
 
@@ -134,6 +178,7 @@ impl<Sm: StateMachineDef, const MAX_NEST_DEPTH: usize, S: RunState>
                 }
             }
         }
+        */
     }
 
     fn enter(&mut self, context: &mut Sm, target_path: &[State<Sm>]) {
@@ -166,6 +211,7 @@ impl<Sm: StateMachineDef, const MAX_NEST_DEPTH: usize> StateMachine<Sm, MAX_NEST
     #[must_use]
     pub fn new() -> Self {
         Self {
+            curr_state: None,
             path: FixedVec::<State<Sm>, MAX_NEST_DEPTH>::new(),
             _pd: PhantomData::<Init>,
         }
@@ -176,6 +222,7 @@ impl<Sm: StateMachineDef, const MAX_NEST_DEPTH: usize> StateMachine<Sm, MAX_NEST
         self.transition(context, target);
 
         StateMachine::<Sm, MAX_NEST_DEPTH, Run> {
+            curr_state: self.curr_state,
             path: self.path,
             _pd: PhantomData::<Run>,
         }
@@ -184,8 +231,12 @@ impl<Sm: StateMachineDef, const MAX_NEST_DEPTH: usize> StateMachine<Sm, MAX_NEST
 
 impl<Sm: StateMachineDef, const MAX_NEST_DEPTH: usize> StateMachine<Sm, MAX_NEST_DEPTH, Run> {
     pub fn dispatch(&mut self, context: &mut Sm, event: &Sm::Event) {
-        for state in self.path.iter().rev() {
-            match (state.handler)(context, event) {
+        let mut handled = Action::<Sm>::Unhandled;
+        let mut state_opt = self.curr_state;
+
+        while let Some(state) = state_opt {
+            handled = (state.handler)(context, event);
+            match handled {
                 Action::<Sm>::Handled => break,
                 Action::<Sm>::Transition(new_state) => {
                     self.transition(context, new_state);
@@ -193,6 +244,10 @@ impl<Sm: StateMachineDef, const MAX_NEST_DEPTH: usize> StateMachine<Sm, MAX_NEST
                 }
                 Action::Unhandled => (),
             }
+
+            state_opt = state.parent;
         }
+
+        assert!(!matches!(handled, Action::<Sm>::Unhandled), "Unhandled event detected");
     }
 }

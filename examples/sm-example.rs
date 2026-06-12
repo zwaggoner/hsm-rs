@@ -58,6 +58,8 @@ impl StateDef<State11> for TestActor {
     }
 
     fn handler(&mut self, _event: &UserEvent) -> Action<Self> {
+        println!("State11 Handler");
+
         Action::Transition(State12::state())
     }
 
@@ -82,6 +84,8 @@ impl StateDef<State12> for TestActor {
     }
 
     fn handler(&mut self, _event: &UserEvent) -> Action<Self> {
+        println!("State12 Handler");
+
         Action::Transition(State11::state())
     }
 
