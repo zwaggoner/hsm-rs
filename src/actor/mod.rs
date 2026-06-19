@@ -57,14 +57,14 @@ impl StepStatus {
     }
 }
 
-enum CurrSM<Sm: StateMachineDef + 'static, const MAX_NEST_DEPTH: usize> {
-    Init(StateMachine<Sm, MAX_NEST_DEPTH, Init>),
-    Run(StateMachine<Sm, MAX_NEST_DEPTH, Run>),
+enum CurrSM<Sm: StateMachineDef + 'static> {
+    Init(StateMachine<Sm, Init>),
+    Run(StateMachine<Sm, Run>),
 }
 
-impl<Sm: StateMachineDef, const MAX_NEST_DEPTH: usize> Default for CurrSM<Sm, MAX_NEST_DEPTH> {
+impl<Sm: StateMachineDef> Default for CurrSM<Sm> {
     fn default() -> Self {
-        CurrSM::Init(StateMachine::<Sm, MAX_NEST_DEPTH>::default())
+        CurrSM::Init(StateMachine::<Sm>::default())
     }
 }
 
@@ -73,27 +73,25 @@ impl<Sm: StateMachineDef, const MAX_NEST_DEPTH: usize> Default for CurrSM<Sm, MA
 pub struct Actor<
     Sm: StateMachineDef + 'static,
     Q: QueueAdapter<Sm::Event>,
-    const MAX_NEST_DEPTH: usize = 8,
 > {
     event_queue: EventQueue<Sm::Event, Q>,
-    _pdsm: PhantomData<CurrSM<Sm, MAX_NEST_DEPTH>>,
+    _pdsm: PhantomData<CurrSM<Sm>>,
 }
 
 pub struct RuntimeActor<
     'a,
     Sm: StateMachineDef + 'static,
     Q: QueueAdapter<Sm::Event>,
-    const MAX_NEST_DEPTH: usize,
 > {
     event_consumer: EventConsumer<'a, Sm::Event, Q>,
     context: Sm,
-    sm: CurrSM<Sm, MAX_NEST_DEPTH>,
+    sm: CurrSM<Sm>,
     next_event: Option<Sm::Event>,
     initialized: bool,
 }
 
-impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usize>
-    Actor<Sm, Q, MAX_NEST_DEPTH>
+impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>>
+    Actor<Sm, Q>
 {
     /// Constructs a new actor given its context object and underlying event queue
     pub const fn new(queue: Q) -> Self {
@@ -115,7 +113,7 @@ impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usiz
     /// The Actor can only be bound once. If the actor has already been bound, the bind function
     /// will panic, as this represents a configuration error in the framework, not a resolvable
     /// runtime error.
-    pub fn bind(&self, context: Sm) -> RuntimeActor<'_, Sm, Q, MAX_NEST_DEPTH> {
+    pub fn bind(&self, context: Sm) -> RuntimeActor<'_, Sm, Q> {
         RuntimeActor {
             event_consumer: self
                 .event_queue
@@ -129,8 +127,8 @@ impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usiz
     }
 }
 
-impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event> + MultiProducer, const MAX_NEST_DEPTH: usize>
-    Actor<Sm, Q, MAX_NEST_DEPTH>
+impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event> + MultiProducer>
+    Actor<Sm, Q>
 {
     /// Enqueues an item to the underlying queue directly on the actor's event queue. This method is
     /// only available if the underlying queue is [`MultiProducer`]
@@ -141,8 +139,8 @@ impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event> + MultiProducer, const MAX_
     }
 }
 
-impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usize>
-    RuntimeActor<'_, Sm, Q, MAX_NEST_DEPTH>
+impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>>
+    RuntimeActor<'_, Sm, Q>
 {
     fn prefetch_event(&mut self) -> bool {
         self.next_event = self.event_consumer.dequeue();
@@ -150,8 +148,8 @@ impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usiz
     }
 }
 
-impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>, const MAX_NEST_DEPTH: usize> ActorRuntime
-    for RuntimeActor<'_, Sm, Q, MAX_NEST_DEPTH>
+impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>> ActorRuntime
+    for RuntimeActor<'_, Sm, Q>
 {
     fn initialized(&self) -> bool {
         self.initialized
