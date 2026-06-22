@@ -1,4 +1,4 @@
-use crate::state_machine::{Action, State, StateMachineDef, MAX_NEST_DEPTH};
+use crate::state_machine::{Action, State, StateMachineDef, DEFAULT_MAX_NEST_DEPTH};
 use crate::util::fixed_vec::FixedVec;
 use core::marker::PhantomData;
 
@@ -21,23 +21,42 @@ pub struct Run {}
 impl _private::Sealed for Run {}
 impl RunState for Run {}
 
+#[cfg(not(feature = "generic-const-exprs"))]
+type StatePath<Sm> = FixedVec<State<Sm>, DEFAULT_MAX_NEST_DEPTH>;
+
+#[cfg(feature = "generic-const-exprs")]
+type StatePath<Sm: StateMachineDef> = FixedVec<State<Sm>, {Sm::MAX_NEST_DEPTH}>;
+
 /// Runtime `StateMachine` object. Instatiates a state machine that can actually be used for
 /// execution. The `Sm` (state machine) object implementing [`StateMachineDef`] must be supplied.
+#[cfg(not(feature = "generic-const-exprs"))]
 pub struct StateMachine<
     Sm: StateMachineDef + 'static,
     S: RunState = Init,
 > {
     curr_state: Option<State<Sm>>,
-    path: FixedVec<State<Sm>, MAX_NEST_DEPTH>,
+    path: StatePath<Sm>,
+    _pd: PhantomData<S>,
+}
+
+#[cfg(feature = "generic-const-exprs")]
+pub struct StateMachine<
+    Sm: StateMachineDef + 'static,
+    S: RunState = Init,
+> 
+{
+
+    curr_state: Option<State<Sm>>,
+    path: StatePath<Sm>,
     _pd: PhantomData<S>,
 }
 
 impl<Sm: StateMachineDef, S: RunState>
     StateMachine<Sm, S>
 {
-    fn get_path(state: State<Sm>) -> FixedVec<State<Sm>, MAX_NEST_DEPTH> {
+    fn get_path(state: State<Sm>) -> StatePath<Sm> {
         let mut curr_state = state;
-        let mut path: FixedVec<State<Sm>, MAX_NEST_DEPTH> = FixedVec::new();
+        let mut path: StatePath<Sm> = StatePath::<Sm>::new();
         let mut excess_depth = 0;
 
         path.push(state)
@@ -55,8 +74,8 @@ impl<Sm: StateMachineDef, S: RunState>
         let depth = path.len() + excess_depth;
 
         assert!(
-            depth <= MAX_NEST_DEPTH,
-            "Path to state exceeds MAX_NEST_DEPTH: {MAX_NEST_DEPTH}, suggest increasing to {depth}"
+            depth <= DEFAULT_MAX_NEST_DEPTH,
+            "Path to state exceeds DEFAULT_MAX_NEST_DEPTH: {DEFAULT_MAX_NEST_DEPTH}, suggest increasing to {depth}"
         );
 
         path.reverse();
@@ -64,7 +83,7 @@ impl<Sm: StateMachineDef, S: RunState>
         path
     }
 
-    fn find_lca(&self, target_path: &FixedVec<State<Sm>, MAX_NEST_DEPTH>) -> Option<usize> {
+    fn find_lca(&self, target_path: &StatePath<Sm>) -> Option<usize> {
         let max_search_depth = core::cmp::min(self.path.len(), target_path.len());
 
         // If the max depth of either tree is 0, there's no LCA
@@ -166,7 +185,7 @@ impl<Sm: StateMachineDef> StateMachine<Sm, Init> {
     pub fn new() -> Self {
         Self {
             curr_state: None,
-            path: FixedVec::<State<Sm>, MAX_NEST_DEPTH>::new(),
+            path: StatePath::<Sm>::new(),
             _pd: PhantomData::<Init>,
         }
     }

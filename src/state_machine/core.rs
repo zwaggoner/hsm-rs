@@ -5,7 +5,7 @@ use core::marker::PhantomData;
 /// reference to `StateDesc`
 pub type State<Sm> = &'static StateDesc<Sm>;
 
-pub(crate) const MAX_NEST_DEPTH: usize = const {
+pub(crate) const DEFAULT_MAX_NEST_DEPTH: usize = const {
     if let Some(depth) = option_env!("RSM_MAX_NEST_DEPTH") {
         const_str::parse!(depth, usize)
     } else {
@@ -51,7 +51,7 @@ pub trait StateMachineDef: Sized {
     type Event: 'static;
 
     /// Depth Specification
-    const MAX_NEST_DEPTH: usize = MAX_NEST_DEPTH;
+    const MAX_NEST_DEPTH: usize = DEFAULT_MAX_NEST_DEPTH;
 
     /// Overall state machine initial transition (executed exactly once per state machine).
     fn initial(&mut self) -> State<Self>;
