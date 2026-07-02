@@ -3,6 +3,7 @@ use core::ops::{Deref, DerefMut};
 use core::ptr;
 use core::slice;
 
+#[derive(Debug)]
 pub struct FixedVec<T, const MAX_DEPTH: usize = 32> {
     arr: [MaybeUninit<T>; MAX_DEPTH],
     len: usize,
@@ -26,6 +27,7 @@ impl<T, const MAX_DEPTH: usize> FixedVec<T, MAX_DEPTH> {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub(crate) fn pop(&mut self) -> Option<T> {
         if self.len == 0 {
             return None;

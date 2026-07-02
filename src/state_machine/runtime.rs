@@ -36,58 +36,75 @@ pub struct StateMachine<
 impl<Sm: StateMachineDef, S: RunState>
     StateMachine<Sm, S>
 {
+    fn exit_to(&mut self, context: &mut Sm, depth: usize) {
+        while let Some(curr_state) = self.curr_state {
+            if curr_state.depth > depth {
+                (curr_state.exit)(context);
+
+                self.curr_state = curr_state.parent;
+            } else {
+                return;
+            }
+        }
+    }
+
+    fn initial_entry_path(&mut self, target: State<Sm>) -> StatePath<Sm> {
+        let mut entry_path: StatePath<Sm> = StatePath::<Sm>::new(); 
+        let mut target_tree_state = target;
+        let mut initial_path_found = false;
+
+        entry_path.push(target_tree_state)
+            .expect("Unexpectedly exceeded path capacity");
+
+        while !initial_path_found {
+            if let Some(curr_state) = self.curr_state {
+                if target_tree_state.depth <= curr_state.depth + 1 {
+                    initial_path_found = true;
+                } else if target_tree_state.depth < curr_state.depth {
+                    assert!(false, "Unexpected configuration");
+                }
+            }
+
+            if let Some(target_tree_state_parent) = target_tree_state.parent {
+                target_tree_state = target_tree_state_parent;
+            }
+            else {
+                initial_path_found = true;
+            }
+        }
+
+        entry_path
+    }
+
     fn transition(&mut self, context: &mut Sm, target: State<Sm>) {
         //let mut child_initial_transition = false;
         let mut transition_target = Some(target);
 
         while let Some(mut target_state) = transition_target {
-            let mut entry_path: StatePath<Sm> = StatePath::<Sm>::new();
-            entry_path.push(target_state).expect("Unexpectedly exceeded path capacity");
+            self.exit_to(context, target_state.depth - 1);
 
-            if let Some(mut curr_state) = self.curr_state {
-                while curr_state.depth > target_state.depth {
-                    (curr_state.exit)(context);
-                    
-                    if let Some(curr_state_parent) = curr_state.parent {
-                        curr_state = curr_state_parent;
-                    } else {
-                        break;
-                    }
-                }
+            let mut entry_path = self.initial_entry_path(target_state);
 
-                if curr_state.depth == target_state.depth {
-                    while curr_state.parent != target_state.parent {
-                        (curr_state.exit)(context);
+            target_state = entry_path.last().expect("Unexpectedly empty entry path");
 
-                        if let Some(curr_state_parent) = curr_state.parent {
-                            curr_state = curr_state_parent;
-                        } 
-
-                        if let Some(target_state_parent) = target_state.parent {
-                            entry_path.push(target_state_parent).expect("Unexpectedly exceeded path capacity");
-                            target_state = target_state_parent;
-                        }
-                    }
+            while target_state.parent != self.curr_state {
+                if let Some(curr_state) = self.curr_state {
+                    assert!(target_state.depth == curr_state.depth || target_state.depth == curr_state.depth + 1, "Unexpected target_state and curr_state configuration");
 
                     (curr_state.exit)(context);
-                }
-                else {
-                    while target_state.depth > curr_state.depth {
-                        if let Some(target_state_parent) = target_state.parent {
-                            if target_state_parent != curr_state {
-                                entry_path.push(target_state_parent).expect("Unexpectedly exceeded path capacity");
-                            }
+                    self.curr_state = curr_state.parent;
 
-                            target_state = target_state_parent;
-                        } else {
-                            break;
-                        }
+                    if target_state.depth == curr_state.depth + 1 {
+                        continue;
                     }
                 }
-            } else {
-                while let Some(target_state_parent) = target_state.parent {
-                    entry_path.push(target_state_parent).expect("Unexpectedly exceeded path capacity");
+
+                entry_path.push(target_state).expect("Unexpectedly exceeded path capacity");
+
+                if let Some(target_state_parent) = target_state.parent {
                     target_state = target_state_parent;
+                } else {
+                    break;
                 }
             }
 

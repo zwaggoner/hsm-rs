@@ -1,4 +1,4 @@
-#![no_std]
+//#![no_std]
 
 //! A state machine/actor framework inspired by the [QuantumLeaps](https://www.state-machine.com/)
 //! framework, ported to Rust. The goals of this framework were to provide a `no_std`/no allocation
