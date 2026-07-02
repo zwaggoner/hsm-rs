@@ -1,8 +1,5 @@
 #![no_std]
 
-#![cfg_attr(feature = "generic-const-exprs", allow(incomplete_features))]
-#![cfg_attr(feature = "generic-const-exprs", feature(generic_const_exprs))]
-
 //! A state machine/actor framework inspired by the [QuantumLeaps](https://www.state-machine.com/)
 //! framework, ported to Rust. The goals of this framework were to provide a `no_std`/no allocation
 //! version of a state machine framework in rust, while being as idiomatic as possible (based upon

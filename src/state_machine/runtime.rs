@@ -21,153 +21,85 @@ pub struct Run {}
 impl _private::Sealed for Run {}
 impl RunState for Run {}
 
-#[cfg(not(feature = "generic-const-exprs"))]
 type StatePath<Sm> = FixedVec<State<Sm>, DEFAULT_MAX_NEST_DEPTH>;
-
-#[cfg(feature = "generic-const-exprs")]
-type StatePath<Sm: StateMachineDef> = FixedVec<State<Sm>, {Sm::MAX_NEST_DEPTH}>;
 
 /// Runtime `StateMachine` object. Instatiates a state machine that can actually be used for
 /// execution. The `Sm` (state machine) object implementing [`StateMachineDef`] must be supplied.
-#[cfg(not(feature = "generic-const-exprs"))]
 pub struct StateMachine<
     Sm: StateMachineDef + 'static,
     S: RunState = Init,
 > {
     curr_state: Option<State<Sm>>,
-    path: StatePath<Sm>,
-    _pd: PhantomData<S>,
-}
-
-#[cfg(feature = "generic-const-exprs")]
-pub struct StateMachine<
-    Sm: StateMachineDef + 'static,
-    S: RunState = Init,
-> 
-{
-
-    curr_state: Option<State<Sm>>,
-    path: StatePath<Sm>,
     _pd: PhantomData<S>,
 }
 
 impl<Sm: StateMachineDef, S: RunState>
     StateMachine<Sm, S>
 {
-    fn get_path(state: State<Sm>) -> StatePath<Sm> {
-        let mut curr_state = state;
-        let mut path: StatePath<Sm> = StatePath::<Sm>::new();
-        let mut excess_depth = 0;
-
-        path.push(state)
-            .expect("Unexpectedly exceeded capacity on first push to path");
-
-        while let Some(parent) = curr_state.parent {
-            match path.push(parent) {
-                Ok(()) => (),
-                Err(()) => excess_depth += 1,
-            }
-
-            curr_state = parent;
-        }
-
-        let depth = path.len() + excess_depth;
-
-        assert!(
-            depth <= DEFAULT_MAX_NEST_DEPTH,
-            "Path to state exceeds DEFAULT_MAX_NEST_DEPTH: {DEFAULT_MAX_NEST_DEPTH}, suggest increasing to {depth}"
-        );
-
-        path.reverse();
-
-        path
-    }
-
-    fn find_lca(&self, target_path: &StatePath<Sm>) -> Option<usize> {
-        let max_search_depth = core::cmp::min(self.path.len(), target_path.len());
-
-        // If the max depth of either tree is 0, there's no LCA
-        if max_search_depth == 0 {
-            return None;
-        }
-
-        // Same if top differ
-        if self.path.first() != target_path.first() {
-            return None;
-        }
-
-        let mut last_common_ancestor = 0;
-
-        for i in 1..max_search_depth {
-            if self.path[i] == target_path[i] {
-                last_common_ancestor = i;
-            } else {
-                break;
-            }
-        }
-
-        Some(last_common_ancestor)
-    }
-
     fn transition(&mut self, context: &mut Sm, target: State<Sm>) {
-        let mut child_initial_transition = false;
+        //let mut child_initial_transition = false;
         let mut transition_target = Some(target);
 
-        while let Some(state) = transition_target {
-            // Compute new tree
-            let target_path = Self::get_path(state);
+        while let Some(mut target_state) = transition_target {
+            let mut entry_path: StatePath<Sm> = StatePath::<Sm>::new();
+            entry_path.push(target_state).expect("Unexpectedly exceeded path capacity");
 
-            // Find LCA
-            let enter_exit_target: usize = if let Some(lca) = self.find_lca(&target_path) {
-                lca + 1
+            if let Some(mut curr_state) = self.curr_state {
+                while curr_state.depth > target_state.depth {
+                    (curr_state.exit)(context);
+                    
+                    if let Some(curr_state_parent) = curr_state.parent {
+                        curr_state = curr_state_parent;
+                    } else {
+                        break;
+                    }
+                }
+
+                if curr_state.depth == target_state.depth {
+                    while curr_state.parent != target_state.parent {
+                        (curr_state.exit)(context);
+
+                        if let Some(curr_state_parent) = curr_state.parent {
+                            curr_state = curr_state_parent;
+                        } 
+
+                        if let Some(target_state_parent) = target_state.parent {
+                            entry_path.push(target_state_parent).expect("Unexpectedly exceeded path capacity");
+                            target_state = target_state_parent;
+                        }
+                    }
+
+                    (curr_state.exit)(context);
+                }
+                else {
+                    while target_state.depth > curr_state.depth {
+                        if let Some(target_state_parent) = target_state.parent {
+                            if target_state_parent != curr_state {
+                                entry_path.push(target_state_parent).expect("Unexpectedly exceeded path capacity");
+                            }
+
+                            target_state = target_state_parent;
+                        } else {
+                            break;
+                        }
+                    }
+                }
             } else {
-                0
-            };
-
-            if child_initial_transition {
-                assert!(
-                    enter_exit_target == self.path.len(),
-                    "Initial transition targets must point to a new child state, detected differing parent tree in initial transition"
-                );
-            }
-
-            // Exit to LCA
-            self.exit_to(context, enter_exit_target);
-
-            // Enter to leaf state
-            self.enter(context, &target_path[enter_exit_target..]);
-
-            self.curr_state = target_path.last().map(|v| { &**v });
-
-            // Check for initial transition in leaf state
-            if let Some(leaf_state) = self.path.last() {
-                transition_target = (leaf_state.initial)(context);
-
-                if let Some(target) = transition_target {
-                    child_initial_transition = true;
-                    assert!(
-                        !self.path.contains(&target),
-                        "Initial transition targets must point to a new child state, detected initial transition to state already in state hierarchy"
-                    );
+                while let Some(target_state_parent) = target_state.parent {
+                    entry_path.push(target_state_parent).expect("Unexpectedly exceeded path capacity");
+                    target_state = target_state_parent;
                 }
             }
-        }
-    }
 
-    fn enter(&mut self, context: &mut Sm, target_path: &[State<Sm>]) {
-        for state in target_path {
-            self.path
-                .push(state)
-                .expect("Unexpectedly exceeded path capacity on entry");
-            (state.entry)(context);
-        }
-    }
+            entry_path.reverse();
 
-    fn exit_to(&mut self, context: &mut Sm, end: usize) {
-        while self.path.len() > end {
-            if let Some(state) = self.path.pop() {
-                (state.exit)(context);
+            for state in entry_path.iter() {
+                (state.entry)(context);
             }
+
+            self.curr_state = entry_path.last().map(|v| &**v); 
+
+            transition_target = (self.curr_state.unwrap().initial)(context);
         }
     }
 }
@@ -185,7 +117,6 @@ impl<Sm: StateMachineDef> StateMachine<Sm, Init> {
     pub fn new() -> Self {
         Self {
             curr_state: None,
-            path: StatePath::<Sm>::new(),
             _pd: PhantomData::<Init>,
         }
     }
@@ -196,7 +127,6 @@ impl<Sm: StateMachineDef> StateMachine<Sm, Init> {
 
         StateMachine::<Sm, Run> {
             curr_state: self.curr_state,
-            path: self.path,
             _pd: PhantomData::<Run>,
         }
     }

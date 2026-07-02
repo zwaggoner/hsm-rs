@@ -10,7 +10,6 @@ edition = "2024"
 
 [features]
 default = []
-generic-const-exprs=[]
 blinky-example = [
     "dep:cortex-m",
     "dep:cortex-m-rt",
