@@ -94,7 +94,7 @@ impl<Sm: StateMachineDef, S: RunState>
                     (curr_state.exit)(context);
                     self.curr_state = curr_state.parent;
 
-                    if target_state.depth == curr_state.depth + 1 {
+                    if target_state.depth != curr_state.depth + 1 {
                         continue;
                     }
                 }

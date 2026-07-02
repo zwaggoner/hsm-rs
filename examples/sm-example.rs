@@ -86,7 +86,7 @@ impl StateDef<State12> for TestActor {
     fn handler(&mut self, _event: &UserEvent) -> Action<Self> {
         println!("State12 Handler");
 
-        Action::Transition(State13::state())
+        Action::Transition(State131::state())
     }
 
     fn exit(&mut self) {
@@ -112,11 +112,63 @@ impl StateDef<State13> for TestActor {
     fn handler(&mut self, _event: &UserEvent) -> Action<Self> {
         println!("State13 Handler");
 
-        Action::Transition(State1::state())
+        Action::Transition(State14::state())
     }
 
     fn exit(&mut self) {
         println!("State13 Exit");
+    }
+}
+
+struct State131;
+
+impl StateDef<State131> for TestActor {
+    type Parent = Super<State13>;
+
+    fn initial(&mut self) -> Option<State<Self>> {
+        println!("State131 Initial");
+
+        None
+    }
+
+    fn entry(&mut self) {
+        println!("State131 Entry");
+    }
+
+    fn handler(&mut self, _event: &UserEvent) -> Action<Self> {
+        println!("State131 Handler");
+
+        Action::Transition(State13::state())
+    }
+
+    fn exit(&mut self) {
+        println!("State131 Exit");
+    }
+}
+
+struct State14;
+
+impl StateDef<State14> for TestActor {
+    type Parent = Super<State1>;
+
+    fn initial(&mut self) -> Option<State<Self>> {
+        println!("State14 Initial");
+
+        None
+    }
+
+    fn entry(&mut self) {
+        println!("State14 Entry");
+    }
+
+    fn handler(&mut self, _event: &UserEvent) -> Action<Self> {
+        println!("State14 Handler");
+
+        Action::Transition(State1::state())
+    }
+
+    fn exit(&mut self) {
+        println!("State14 Exit");
     }
 }
 
@@ -126,9 +178,9 @@ fn main() {
         32,
     >::default());
 
-    actor.enqueue(UserEvent::TestEvent).unwrap();
-    actor.enqueue(UserEvent::TestEvent).unwrap();
-    actor.enqueue(UserEvent::TestEvent).unwrap();
+    for _ in 0..4 {
+        actor.enqueue(UserEvent::TestEvent).unwrap();
+    }
 
     let mut actor_rt = actor.bind(TestActor {});
 
