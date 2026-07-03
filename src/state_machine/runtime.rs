@@ -53,15 +53,15 @@ impl<Sm: StateMachineDef, S: RunState>
         let mut target_tree_state = target;
         let mut initial_path_found = false;
 
-        entry_path.push(target_tree_state)
-            .expect("Unexpectedly exceeded path capacity");
-
         while !initial_path_found {
+            entry_path.push(target_tree_state)
+                .expect("Unexpectedly exceeded path capacity");
+
             if let Some(curr_state) = self.curr_state {
                 if target_tree_state.depth <= curr_state.depth + 1 {
                     initial_path_found = true;
                 } else if target_tree_state.depth < curr_state.depth {
-                    assert!(false, "Unexpected configuration");
+                    assert!(false, "Unexpectedly encountered target tree state depth less than current state depth");
                 }
             }
 
@@ -89,7 +89,7 @@ impl<Sm: StateMachineDef, S: RunState>
 
             while target_state.parent != self.curr_state {
                 if let Some(curr_state) = self.curr_state {
-                    assert!(target_state.depth == curr_state.depth || target_state.depth == curr_state.depth + 1, "Unexpected target_state and curr_state configuration");
+                    assert!(target_state.depth == curr_state.depth || target_state.depth == curr_state.depth + 1, "Unexpected target_state and curr_state depths");
 
                     (curr_state.exit)(context);
                     self.curr_state = curr_state.parent;
@@ -114,9 +114,17 @@ impl<Sm: StateMachineDef, S: RunState>
                 (state.entry)(context);
             }
 
-            self.curr_state = entry_path.last().map(|v| &**v); 
+            if let Some(curr_state) = entry_path.last() {
+                self.curr_state = Some(curr_state);
 
-            transition_target = (self.curr_state.unwrap().initial)(context);
+                transition_target = (curr_state.initial)(context);
+
+                if let Some(tt) = transition_target {
+                    assert!(tt.depth > curr_state.depth, "Initial transitions must be to a valid child state");
+                }
+            } else {
+                assert!(false, "Fatal error, transition to None occurred");
+            }
         }
     }
 }
