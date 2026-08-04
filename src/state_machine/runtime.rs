@@ -81,7 +81,7 @@ impl<Sm: StateMachineDef, S: RunState>
         let mut transition_target = Some(target);
 
         while let Some(mut target_state) = transition_target {
-            self.exit_to(context, target_state.depth - 1);
+            self.exit_to(context, target_state.depth);
 
             let mut entry_path = self.initial_entry_path(target_state);
 
@@ -90,7 +90,6 @@ impl<Sm: StateMachineDef, S: RunState>
             while target_state.parent != self.curr_state {
                 if let Some(curr_state) = self.curr_state {
                     assert!(target_state.depth == curr_state.depth || target_state.depth == curr_state.depth + 1, "Unexpected target_state and curr_state depths");
-
                     (curr_state.exit)(context);
                     self.curr_state = curr_state.parent;
 
@@ -99,13 +98,19 @@ impl<Sm: StateMachineDef, S: RunState>
                     }
                 }
 
-                entry_path.push(target_state).expect("Unexpectedly exceeded path capacity");
+                if *entry_path.last().expect("Unexpectedly empty entry path") != target_state {
+                    entry_path.push(target_state).expect("Unexpectedly exceeded path capacity");
+                }
 
                 if let Some(target_state_parent) = target_state.parent {
                     target_state = target_state_parent;
                 } else {
                     break;
                 }
+            }
+
+            if *entry_path.last().expect("Unexpectedly empty entry path") != target_state {
+                entry_path.push(target_state).expect("Unexpectedly exceeded path capacity");
             }
 
             entry_path.reverse();

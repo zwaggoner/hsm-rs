@@ -46,9 +46,9 @@ pub(crate) const DEFAULT_MAX_NEST_DEPTH: usize = const {
 /// # }
 /// ```
 /// State1 declaration is omitted here for brevity
-pub trait StateMachineDef: Sized {
+pub trait StateMachineDef: Sized + std::fmt::Debug {
     /// Event type
-    type Event: 'static;
+    type Event: 'static + std::fmt::Debug;
 
     /// Depth Specification
     const MAX_NEST_DEPTH: usize = DEFAULT_MAX_NEST_DEPTH;
