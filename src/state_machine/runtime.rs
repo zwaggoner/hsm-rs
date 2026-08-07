@@ -78,7 +78,7 @@ impl<Sm: StateMachineDef, S: RunState>
 
         while let Some(target_state) = transition_target {
             let curr_state_is_leaf = !self.exit_to(context, target_state.depth);
-            let mut entry_path: StatePath<Sm> = self.excess_entry_path(target); 
+            let mut entry_path: StatePath<Sm> = self.excess_entry_path(target_state); 
             let mut enter_target: bool = true;
 
             if let Some(curr_state) = self.curr_state && curr_state == target_state {
