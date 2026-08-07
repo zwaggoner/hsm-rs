@@ -36,40 +36,36 @@ pub struct StateMachine<
 impl<Sm: StateMachineDef, S: RunState>
     StateMachine<Sm, S>
 {
-    fn exit_to(&mut self, context: &mut Sm, depth: usize) {
+    fn exit_to(&mut self, context: &mut Sm, depth: usize) -> bool {
+        let mut exited: bool = false;
+
         while let Some(curr_state) = self.curr_state {
             if curr_state.depth > depth {
                 (curr_state.exit)(context);
-
+                exited = true;
                 self.curr_state = curr_state.parent;
             } else {
-                return;
+                break;
             }
         }
+
+        exited
     }
 
-    fn initial_entry_path(&mut self, target: State<Sm>) -> StatePath<Sm> {
+    fn excess_entry_path(&mut self, target: State<Sm>) -> StatePath<Sm> {    
+        let depth: usize = self.curr_state.map_or(0, |state| state.depth);
+
         let mut entry_path: StatePath<Sm> = StatePath::<Sm>::new(); 
-        let mut target_tree_state = target;
-        let mut initial_path_found = false;
 
-        while !initial_path_found {
-            entry_path.push(target_tree_state)
-                .expect("Unexpectedly exceeded path capacity");
+        if let Some(mut curr_target_path_state) = target.parent {
+            while curr_target_path_state.depth > depth {
+                entry_path.push(curr_target_path_state).expect("Unexpectedly exceeded path capacity");    
 
-            if let Some(curr_state) = self.curr_state {
-                if target_tree_state.depth <= curr_state.depth + 1 {
-                    initial_path_found = true;
-                } else if target_tree_state.depth < curr_state.depth {
-                    assert!(false, "Unexpectedly encountered target tree state depth less than current state depth");
+                if let Some(curr_target_path_state_parent) = curr_target_path_state.parent {
+                    curr_target_path_state = curr_target_path_state_parent;
+                } else {
+                    break;
                 }
-            }
-
-            if let Some(target_tree_state_parent) = target_tree_state.parent {
-                target_tree_state = target_tree_state_parent;
-            }
-            else {
-                initial_path_found = true;
             }
         }
 
@@ -80,37 +76,39 @@ impl<Sm: StateMachineDef, S: RunState>
         //let mut child_initial_transition = false;
         let mut transition_target = Some(target);
 
-        while let Some(mut target_state) = transition_target {
-            self.exit_to(context, target_state.depth);
+        while let Some(target_state) = transition_target {
+            let curr_state_is_leaf = !self.exit_to(context, target_state.depth);
+            let mut entry_path: StatePath<Sm> = self.excess_entry_path(target); 
+            let mut enter_target: bool = true;
 
-            let mut entry_path = self.initial_entry_path(target_state);
-
-            target_state = entry_path.last().expect("Unexpectedly empty entry path");
-
-            while target_state.parent != self.curr_state {
-                if let Some(curr_state) = self.curr_state {
-                    assert!(target_state.depth == curr_state.depth || target_state.depth == curr_state.depth + 1, "Unexpected target_state and curr_state depths");
+            if let Some(curr_state) = self.curr_state && curr_state == target_state {
+                if curr_state_is_leaf {
                     (curr_state.exit)(context);
-                    self.curr_state = curr_state.parent;
-
-                    if target_state.depth != curr_state.depth + 1 {
-                        continue;
-                    }
-                }
-
-                if *entry_path.last().expect("Unexpectedly empty entry path") != target_state {
-                    entry_path.push(target_state).expect("Unexpectedly exceeded path capacity");
-                }
-
-                if let Some(target_state_parent) = target_state.parent {
-                    target_state = target_state_parent;
                 } else {
-                    break;
+                    enter_target = false;
                 }
             }
+            else {
+                let mut curr_target_path_state = entry_path.last().map_or(target_state, |state| *state);
 
-            if *entry_path.last().expect("Unexpectedly empty entry path") != target_state {
-                entry_path.push(target_state).expect("Unexpectedly exceeded path capacity");
+                while curr_target_path_state.parent != self.curr_state {
+                    if let Some(curr_state) = self.curr_state {
+                        (curr_state.exit)(context);
+                        self.curr_state = curr_state.parent;
+
+                        if curr_target_path_state.depth != curr_state.depth + 1 {
+                            continue;
+                        }
+                    }
+
+                    if let Some(curr_target_path_state_parent) = curr_target_path_state.parent {
+                        entry_path
+                            .push(curr_target_path_state_parent)
+                            .expect("Unexpectedly exceeded path capacity");
+
+                        curr_target_path_state = curr_target_path_state_parent;
+                    } 
+                }
             }
 
             entry_path.reverse();
@@ -119,16 +117,16 @@ impl<Sm: StateMachineDef, S: RunState>
                 (state.entry)(context);
             }
 
-            if let Some(curr_state) = entry_path.last() {
-                self.curr_state = Some(curr_state);
+            if enter_target {
+                (target_state.entry)(context);
+            }
 
-                transition_target = (curr_state.initial)(context);
+            self.curr_state = Some(target_state);
 
-                if let Some(tt) = transition_target {
-                    assert!(tt.depth > curr_state.depth, "Initial transitions must be to a valid child state");
-                }
-            } else {
-                assert!(false, "Fatal error, transition to None occurred");
+            transition_target = (target_state.initial)(context);
+
+            if let Some(tt) = transition_target {
+                assert!(tt.depth > target_state.depth, "Initial transitions must be to a valid child state");
             }
         }
     }
