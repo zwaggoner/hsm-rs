@@ -75,7 +75,7 @@ impl<Sm: StateMachineDef, S: RunState> StateMachine<Sm, S> {
         source: Option<State<Sm>>,
         target: State<Sm>,
         entry_path: &mut StatePath<Sm>,
-        allow_exit: bool,
+        allow_exit_to_lca: bool,
     ) {
         let source_depth: usize = source.map_or(0, |state| state.depth);
         let mut curr_target_path_state = entry_path.last().map_or(target, |state| *state);
@@ -84,14 +84,17 @@ impl<Sm: StateMachineDef, S: RunState> StateMachine<Sm, S> {
             || curr_target_path_state.depth > (source_depth + 1)
         {
             if let Some(curr_state) = self.curr_state {
-                assert!(allow_exit, "Exits not permitted");
+                assert!(
+                    allow_exit_to_lca,
+                    "Invalid Transition: This transition requires an exit, but exits not permitted"
+                );
 
                 (curr_state.exit)(context);
                 self.curr_state = curr_state.parent;
 
                 if curr_target_path_state.depth == curr_state.depth {
                     continue;
-                } 
+                }
 
                 assert!(
                     curr_target_path_state.depth == curr_state.depth + 1,
@@ -141,6 +144,7 @@ impl<Sm: StateMachineDef, S: RunState> StateMachine<Sm, S> {
                     enter_target = false;
                 } else {
                     (curr_state.exit)(context);
+                    self.curr_state = curr_state.parent;
                 }
             } else {
                 self.get_entry_path_and_exit_to_lca(
