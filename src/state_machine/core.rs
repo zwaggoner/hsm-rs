@@ -46,9 +46,9 @@ pub(crate) const DEFAULT_MAX_NEST_DEPTH: usize = const {
 /// # }
 /// ```
 /// State1 declaration is omitted here for brevity
-pub trait StateMachineDef: Sized + std::fmt::Debug {
+pub trait StateMachineDef: Sized {
     /// Event type
-    type Event: 'static + std::fmt::Debug;
+    type Event: 'static;
 
     /// Depth Specification
     const MAX_NEST_DEPTH: usize = DEFAULT_MAX_NEST_DEPTH;
@@ -209,9 +209,13 @@ pub struct Top;
 impl<S> _private::Sealed for Super<S> {}
 impl _private::Sealed for Top {}
 
-const fn get_depth<Sm: StateDef<S> + 'static, S: 'static + _private::StaticStateDesc<Sm>>() -> usize {
+const fn get_depth<Sm: StateDef<S> + 'static, S: 'static + _private::StaticStateDesc<Sm>>() -> usize
+{
     let depth = <Sm as StateDef<S>>::Parent::DEPTH + 1;
-    assert!(depth <= Sm::MAX_NEST_DEPTH, "Depth of state has exceeded the configured MAX_NEST_DEPTH");
+    assert!(
+        depth <= Sm::MAX_NEST_DEPTH,
+        "Depth of state has exceeded the configured MAX_NEST_DEPTH"
+    );
 
     depth
 }

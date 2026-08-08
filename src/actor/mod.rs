@@ -70,19 +70,12 @@ impl<Sm: StateMachineDef> Default for CurrSM<Sm> {
 
 /// Actor object housing the underlying state machine, context object and event queue for
 /// orchestrating actor behavior.
-pub struct Actor<
-    Sm: StateMachineDef + 'static,
-    Q: QueueAdapter<Sm::Event>,
-> {
+pub struct Actor<Sm: StateMachineDef + 'static, Q: QueueAdapter<Sm::Event>> {
     event_queue: EventQueue<Sm::Event, Q>,
     _pdsm: PhantomData<CurrSM<Sm>>,
 }
 
-pub struct RuntimeActor<
-    'a,
-    Sm: StateMachineDef + 'static,
-    Q: QueueAdapter<Sm::Event>,
-> {
+pub struct RuntimeActor<'a, Sm: StateMachineDef + 'static, Q: QueueAdapter<Sm::Event>> {
     event_consumer: EventConsumer<'a, Sm::Event, Q>,
     context: Sm,
     sm: CurrSM<Sm>,
@@ -90,9 +83,7 @@ pub struct RuntimeActor<
     initialized: bool,
 }
 
-impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>>
-    Actor<Sm, Q>
-{
+impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>> Actor<Sm, Q> {
     /// Constructs a new actor given its context object and underlying event queue
     pub const fn new(queue: Q) -> Self {
         Self {
@@ -127,9 +118,7 @@ impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>>
     }
 }
 
-impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event> + MultiProducer>
-    Actor<Sm, Q>
-{
+impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event> + MultiProducer> Actor<Sm, Q> {
     /// Enqueues an item to the underlying queue directly on the actor's event queue. This method is
     /// only available if the underlying queue is [`MultiProducer`]
     /// # Errors
@@ -139,18 +128,14 @@ impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event> + MultiProducer>
     }
 }
 
-impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>>
-    RuntimeActor<'_, Sm, Q>
-{
+impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>> RuntimeActor<'_, Sm, Q> {
     fn prefetch_event(&mut self) -> bool {
         self.next_event = self.event_consumer.dequeue();
         self.next_event.is_some()
     }
 }
 
-impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>> ActorRuntime
-    for RuntimeActor<'_, Sm, Q>
-{
+impl<Sm: StateMachineDef, Q: QueueAdapter<Sm::Event>> ActorRuntime for RuntimeActor<'_, Sm, Q> {
     fn initialized(&self) -> bool {
         self.initialized
     }

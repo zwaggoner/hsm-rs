@@ -1,4 +1,4 @@
-use crate::state_machine::{Action, State, StateMachineDef, DEFAULT_MAX_NEST_DEPTH};
+use crate::state_machine::{Action, DEFAULT_MAX_NEST_DEPTH, State, StateMachineDef};
 use crate::util::fixed_vec::FixedVec;
 use core::marker::PhantomData;
 
@@ -25,17 +25,12 @@ type StatePath<Sm> = FixedVec<State<Sm>, DEFAULT_MAX_NEST_DEPTH>;
 
 /// Runtime `StateMachine` object. Instatiates a state machine that can actually be used for
 /// execution. The `Sm` (state machine) object implementing [`StateMachineDef`] must be supplied.
-pub struct StateMachine<
-    Sm: StateMachineDef + 'static,
-    S: RunState = Init,
-> {
+pub struct StateMachine<Sm: StateMachineDef + 'static, S: RunState = Init> {
     curr_state: Option<State<Sm>>,
     _pd: PhantomData<S>,
 }
 
-impl<Sm: StateMachineDef, S: RunState>
-    StateMachine<Sm, S>
-{
+impl<Sm: StateMachineDef, S: RunState> StateMachine<Sm, S> {
     fn exit_to(&mut self, context: &mut Sm, target: State<Sm>) -> bool {
         let mut exited: bool = false;
 
@@ -52,14 +47,16 @@ impl<Sm: StateMachineDef, S: RunState>
         exited
     }
 
-    fn excess_entry_path(&mut self, target: State<Sm>) -> StatePath<Sm> {    
+    fn get_path_to_target(&self, target: State<Sm>) -> StatePath<Sm> {
         let depth: usize = self.curr_state.map_or(0, |state| state.depth);
 
-        let mut entry_path: StatePath<Sm> = StatePath::<Sm>::new(); 
+        let mut entry_path: StatePath<Sm> = StatePath::<Sm>::new();
 
         if let Some(mut curr_target_path_state) = target.parent {
             while curr_target_path_state.depth > depth {
-                entry_path.push(curr_target_path_state).expect("Unexpectedly exceeded path capacity");    
+                entry_path
+                    .push(curr_target_path_state)
+                    .expect("Unexpectedly exceeded path capacity");
 
                 if let Some(curr_target_path_state_parent) = curr_target_path_state.parent {
                     curr_target_path_state = curr_target_path_state_parent;
@@ -79,20 +76,24 @@ impl<Sm: StateMachineDef, S: RunState>
 
         while let Some(target_state) = transition_target {
             let curr_state_is_leaf = !self.exit_to(context, target_state);
-            let mut entry_path: StatePath<Sm> = self.excess_entry_path(target_state); 
+            let mut entry_path: StatePath<Sm> = self.get_path_to_target(target_state);
             let mut enter_target: bool = true;
 
-            if let Some(curr_state) = self.curr_state && curr_state == target_state {
+            if let Some(curr_state) = self.curr_state
+                && curr_state == target_state
+            {
                 if curr_state_is_leaf {
                     (curr_state.exit)(context);
                 } else {
                     enter_target = false;
                 }
-            }
-            else {
-                let mut curr_target_path_state = entry_path.last().map_or(target_state, |state| *state);
+            } else {
+                let mut curr_target_path_state =
+                    entry_path.last().map_or(target_state, |state| *state);
 
-                while curr_target_path_state.parent != self.curr_state || curr_target_path_state.depth > (transition_source_depth + 1) {
+                while curr_target_path_state.parent != self.curr_state
+                    || curr_target_path_state.depth > (transition_source_depth + 1)
+                {
                     if let Some(curr_state) = self.curr_state {
                         (curr_state.exit)(context);
                         self.curr_state = curr_state.parent;
@@ -114,9 +115,7 @@ impl<Sm: StateMachineDef, S: RunState>
                 }
             }
 
-            entry_path.reverse();
-
-            for state in entry_path.iter() {
+            for state in entry_path.iter().rev() {
                 (state.entry)(context);
             }
 
@@ -130,15 +129,16 @@ impl<Sm: StateMachineDef, S: RunState>
             transition_source_depth = target_state.depth;
 
             if let Some(tt) = transition_target {
-                assert!(tt.depth > target_state.depth, "Initial transitions must be to a valid child state");
+                assert!(
+                    tt.depth > target_state.depth,
+                    "Initial transitions must be to a valid child state"
+                );
             }
         }
     }
 }
 
-impl<Sm: StateMachineDef> Default
-    for StateMachine<Sm, Init>
-{
+impl<Sm: StateMachineDef> Default for StateMachine<Sm, Init> {
     fn default() -> Self {
         Self::new()
     }
@@ -165,6 +165,13 @@ impl<Sm: StateMachineDef> StateMachine<Sm, Init> {
 }
 
 impl<Sm: StateMachineDef> StateMachine<Sm, Run> {
+    /// Dispatches an event to the `StateMachine`
+    ///
+    /// # Panics
+    /// All events must be handled, if they are not it is considered a hard fault. This is
+    /// implemented so that safety-critical systems properly fault when unhandled events occur.
+    /// Should you not have the same requirement, simply add a single topmost state encompassing the
+    /// entire state machine, and add a "Handled" action for the handler for the topmost state.
     pub fn dispatch(&mut self, context: &mut Sm, event: &Sm::Event) {
         let mut handled = Action::<Sm>::Unhandled;
         let mut state_opt = self.curr_state;
@@ -183,6 +190,9 @@ impl<Sm: StateMachineDef> StateMachine<Sm, Run> {
             state_opt = state.parent;
         }
 
-        assert!(!matches!(handled, Action::<Sm>::Unhandled), "Unhandled event detected");
+        assert!(
+            !matches!(handled, Action::<Sm>::Unhandled),
+            "Unhandled event detected"
+        );
     }
 }
