@@ -112,7 +112,7 @@ impl StateDef<State13> for TestActor {
     fn handler(&mut self, _event: &UserEvent) -> Action<Self> {
         println!("State13 Handler");
 
-        Action::Transition(State14::state())
+        Action::Transition(State1312::state())
     }
 
     fn exit(&mut self) {
@@ -164,11 +164,37 @@ impl StateDef<State1311> for TestActor {
     fn handler(&mut self, _event: &UserEvent) -> Action<Self> {
         println!("State1311 Handler");
 
-        Action::Transition(State13::state())
+        Action::Unhandled
     }
 
     fn exit(&mut self) {
         println!("State1311 Exit");
+    }
+}
+
+struct State1312;
+
+impl StateDef<State1312> for TestActor {
+    type Parent = Super<State131>;
+
+    fn initial(&mut self) -> Option<State<Self>> {
+        println!("State1312 Initial");
+
+        None
+    }
+
+    fn entry(&mut self) {
+        println!("State1312 Entry");
+    }
+
+    fn handler(&mut self, _event: &UserEvent) -> Action<Self> {
+        println!("State1312 Handler");
+
+        Action::Transition(State14::state())
+    }
+
+    fn exit(&mut self) {
+        println!("State1312 Exit");
     }
 }
 

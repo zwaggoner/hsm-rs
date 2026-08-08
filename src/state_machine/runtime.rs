@@ -72,9 +72,10 @@ impl<Sm: StateMachineDef, S: RunState>
         entry_path
     }
 
-    fn transition(&mut self, context: &mut Sm, target: State<Sm>) {
+    fn transition(&mut self, context: &mut Sm, source_depth: usize, target: State<Sm>) {
         //let mut child_initial_transition = false;
         let mut transition_target = Some(target);
+        let mut transition_source_depth = source_depth;
 
         while let Some(target_state) = transition_target {
             let curr_state_is_leaf = !self.exit_to(context, target_state.depth);
@@ -91,7 +92,7 @@ impl<Sm: StateMachineDef, S: RunState>
             else {
                 let mut curr_target_path_state = entry_path.last().map_or(target_state, |state| *state);
 
-                while curr_target_path_state.parent != self.curr_state {
+                while curr_target_path_state.parent != self.curr_state || curr_target_path_state.depth > (transition_source_depth + 1) {
                     if let Some(curr_state) = self.curr_state {
                         (curr_state.exit)(context);
                         self.curr_state = curr_state.parent;
@@ -107,7 +108,9 @@ impl<Sm: StateMachineDef, S: RunState>
                             .expect("Unexpectedly exceeded path capacity");
 
                         curr_target_path_state = curr_target_path_state_parent;
-                    } 
+                    } else {
+                        break;
+                    }
                 }
             }
 
@@ -124,6 +127,7 @@ impl<Sm: StateMachineDef, S: RunState>
             self.curr_state = Some(target_state);
 
             transition_target = (target_state.initial)(context);
+            transition_source_depth = target_state.depth;
 
             if let Some(tt) = transition_target {
                 assert!(tt.depth > target_state.depth, "Initial transitions must be to a valid child state");
@@ -151,7 +155,7 @@ impl<Sm: StateMachineDef> StateMachine<Sm, Init> {
 
     pub fn initial(mut self, context: &mut Sm) -> StateMachine<Sm, Run> {
         let target = <Sm as StateMachineDef>::initial(context);
-        self.transition(context, target);
+        self.transition(context, 1, target);
 
         StateMachine::<Sm, Run> {
             curr_state: self.curr_state,
@@ -170,7 +174,7 @@ impl<Sm: StateMachineDef> StateMachine<Sm, Run> {
             match handled {
                 Action::<Sm>::Handled => break,
                 Action::<Sm>::Transition(new_state) => {
-                    self.transition(context, new_state);
+                    self.transition(context, state.depth, new_state);
                     break;
                 }
                 Action::Unhandled => (),
