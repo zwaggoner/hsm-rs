@@ -31,6 +31,7 @@ pub(crate) const DEFAULT_MAX_NEST_DEPTH: usize = const {
 ///     Event2,
 /// }
 ///
+/// struct MyActor;
 ///
 /// impl StateMachineDef for MyActor {
 ///     type Event = MyEvent;
@@ -40,6 +41,7 @@ pub(crate) const DEFAULT_MAX_NEST_DEPTH: usize = const {
 ///     }
 /// }
 ///
+/// # struct State1;
 /// # impl StateDef<State1> for MyActor {
 /// #    type Parent = Top;
 /// #
