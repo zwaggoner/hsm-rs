@@ -75,20 +75,27 @@ impl<Sm: StateMachineDef, S: RunState> StateMachine<Sm, S> {
         source: Option<State<Sm>>,
         target: State<Sm>,
         entry_path: &mut StatePath<Sm>,
+        allow_exit: bool,
     ) {
         let source_depth: usize = source.map_or(0, |state| state.depth);
-
         let mut curr_target_path_state = entry_path.last().map_or(target, |state| *state);
 
         while curr_target_path_state.parent != self.curr_state
             || curr_target_path_state.depth > (source_depth + 1)
         {
             if let Some(curr_state) = self.curr_state {
+                assert!(allow_exit, "Exits not permitted");
+
                 (curr_state.exit)(context);
                 self.curr_state = curr_state.parent;
 
-                if curr_target_path_state.depth != curr_state.depth + 1 {
+                if curr_target_path_state.depth == curr_state.depth {
                     continue;
+                } else {
+                    assert!(
+                        curr_target_path_state.depth == curr_state.depth + 1,
+                        "Invalid target and source tree configuration detected"
+                    );
                 }
             }
 
@@ -110,17 +117,30 @@ impl<Sm: StateMachineDef, S: RunState> StateMachine<Sm, S> {
         let mut transition_source = source;
 
         while let Some(target_state) = transition_target {
-            let curr_state_is_leaf = !self.exit_to(context, target_state);
+            let exited_from_curr = self.exit_to(context, target_state);
+
+            if child_initial_transition {
+                assert!(
+                    !exited_from_curr,
+                    "Invalid initial transition, unexpectedly exited current state"
+                );
+            }
+
             let mut entry_path: StatePath<Sm> = self.get_path_to_target(target_state);
             let mut enter_target: bool = true;
 
             if let Some(curr_state) = self.curr_state
                 && curr_state == target_state
             {
-                if curr_state_is_leaf {
-                    (curr_state.exit)(context);
-                } else {
+                assert!(
+                    !child_initial_transition,
+                    "Invalid initial transition to self"
+                );
+
+                if exited_from_curr {
                     enter_target = false;
+                } else {
+                    (curr_state.exit)(context);
                 }
             } else {
                 self.get_entry_path_and_exit_to_lca(
@@ -128,6 +148,7 @@ impl<Sm: StateMachineDef, S: RunState> StateMachine<Sm, S> {
                     transition_source,
                     target_state,
                     &mut entry_path,
+                    !child_initial_transition,
                 );
             }
 
@@ -141,6 +162,7 @@ impl<Sm: StateMachineDef, S: RunState> StateMachine<Sm, S> {
 
             transition_target = (target_state.initial)(context);
             transition_source = Some(target_state);
+            child_initial_transition = true;
 
             self.curr_state = Some(target_state);
 
