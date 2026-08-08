@@ -69,10 +69,45 @@ impl<Sm: StateMachineDef, S: RunState> StateMachine<Sm, S> {
         entry_path
     }
 
+    fn get_entry_path_and_exit_to_lca(
+        &mut self,
+        context: &mut Sm,
+        source: Option<State<Sm>>,
+        target: State<Sm>,
+        entry_path: &mut StatePath<Sm>,
+    ) {
+        let source_depth: usize = source.map_or(0, |state| state.depth);
+
+        let mut curr_target_path_state = entry_path.last().map_or(target, |state| *state);
+
+        while curr_target_path_state.parent != self.curr_state
+            || curr_target_path_state.depth > (source_depth + 1)
+        {
+            if let Some(curr_state) = self.curr_state {
+                (curr_state.exit)(context);
+                self.curr_state = curr_state.parent;
+
+                if curr_target_path_state.depth != curr_state.depth + 1 {
+                    continue;
+                }
+            }
+
+            if let Some(curr_target_path_state_parent) = curr_target_path_state.parent {
+                entry_path
+                    .push(curr_target_path_state_parent)
+                    .expect("Unexpectedly exceeded path capacity");
+
+                curr_target_path_state = curr_target_path_state_parent;
+            } else {
+                break;
+            }
+        }
+    }
+
     fn transition(&mut self, context: &mut Sm, source: Option<State<Sm>>, target: State<Sm>) {
-        //let mut child_initial_transition = false;
+        let mut child_initial_transition = false;
         let mut transition_target = Some(target);
-        let mut transition_source_depth: usize = source.map_or(0, |state| state.depth);
+        let mut transition_source = source;
 
         while let Some(target_state) = transition_target {
             let curr_state_is_leaf = !self.exit_to(context, target_state);
@@ -88,31 +123,12 @@ impl<Sm: StateMachineDef, S: RunState> StateMachine<Sm, S> {
                     enter_target = false;
                 }
             } else {
-                let mut curr_target_path_state =
-                    entry_path.last().map_or(target_state, |state| *state);
-
-                while curr_target_path_state.parent != self.curr_state
-                    || curr_target_path_state.depth > (transition_source_depth + 1)
-                {
-                    if let Some(curr_state) = self.curr_state {
-                        (curr_state.exit)(context);
-                        self.curr_state = curr_state.parent;
-
-                        if curr_target_path_state.depth != curr_state.depth + 1 {
-                            continue;
-                        }
-                    }
-
-                    if let Some(curr_target_path_state_parent) = curr_target_path_state.parent {
-                        entry_path
-                            .push(curr_target_path_state_parent)
-                            .expect("Unexpectedly exceeded path capacity");
-
-                        curr_target_path_state = curr_target_path_state_parent;
-                    } else {
-                        break;
-                    }
-                }
+                self.get_entry_path_and_exit_to_lca(
+                    context,
+                    transition_source,
+                    target_state,
+                    &mut entry_path,
+                );
             }
 
             for state in entry_path.iter().rev() {
@@ -123,10 +139,10 @@ impl<Sm: StateMachineDef, S: RunState> StateMachine<Sm, S> {
                 (target_state.entry)(context);
             }
 
-            self.curr_state = Some(target_state);
-
             transition_target = (target_state.initial)(context);
-            transition_source_depth = target_state.depth;
+            transition_source = Some(target_state);
+
+            self.curr_state = Some(target_state);
 
             if let Some(tt) = transition_target {
                 assert!(
