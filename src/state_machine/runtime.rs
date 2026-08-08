@@ -91,12 +91,12 @@ impl<Sm: StateMachineDef, S: RunState> StateMachine<Sm, S> {
 
                 if curr_target_path_state.depth == curr_state.depth {
                     continue;
-                } else {
-                    assert!(
-                        curr_target_path_state.depth == curr_state.depth + 1,
-                        "Invalid target and source tree configuration detected"
-                    );
-                }
+                } 
+
+                assert!(
+                    curr_target_path_state.depth == curr_state.depth + 1,
+                    "Invalid target and source tree configuration detected"
+                );
             }
 
             if let Some(curr_target_path_state_parent) = curr_target_path_state.parent {
