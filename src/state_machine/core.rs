@@ -46,6 +46,16 @@ pub(crate) const DEFAULT_MAX_NEST_DEPTH: usize = const {
 /// # }
 /// ```
 /// State1 declaration is omitted here for brevity
+///
+/// Users can optionally specify `MAX_NEST_DEPTH`, operationally, `MAX_NEST_DEPTH` is used for
+/// compile-time depth assertions on the depth of the state machine. Should [generic-const-exprs]
+/// ever become stable rust, the intent of this field is to bound the maximum runtime storage needed
+/// for calculating transition paths. Until this feature is stabilized though, users can manipulate
+/// `DEFAULT_MAX_NEST_DEPTH` by setting the environment variable `RSM_MAX_NEST_DEPTH`.
+/// `DEFAULT_MAX_NEST_DEPTH` is currently used as the bound for the runtime storage, which is
+/// defaulted to 8,  and the trait impl of `MAX_NEST_DEPTH` is used for the runtime check. This choice was made to stabilize the
+/// trait definition, while providing a clean deprecation path, despite the potential for divergence
+/// between the two depth definitions.
 pub trait StateMachineDef: Sized {
     /// Event type
     type Event: 'static;
