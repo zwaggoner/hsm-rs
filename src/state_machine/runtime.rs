@@ -36,11 +36,11 @@ pub struct StateMachine<
 impl<Sm: StateMachineDef, S: RunState>
     StateMachine<Sm, S>
 {
-    fn exit_to(&mut self, context: &mut Sm, depth: usize) -> bool {
+    fn exit_to(&mut self, context: &mut Sm, target: State<Sm>) -> bool {
         let mut exited: bool = false;
 
         while let Some(curr_state) = self.curr_state {
-            if curr_state.depth > depth {
+            if curr_state.depth > target.depth {
                 (curr_state.exit)(context);
                 exited = true;
                 self.curr_state = curr_state.parent;
@@ -72,13 +72,13 @@ impl<Sm: StateMachineDef, S: RunState>
         entry_path
     }
 
-    fn transition(&mut self, context: &mut Sm, source_depth: usize, target: State<Sm>) {
+    fn transition(&mut self, context: &mut Sm, source: Option<State<Sm>>, target: State<Sm>) {
         //let mut child_initial_transition = false;
         let mut transition_target = Some(target);
-        let mut transition_source_depth = source_depth;
+        let mut transition_source_depth: usize = source.map_or(0, |state| state.depth);
 
         while let Some(target_state) = transition_target {
-            let curr_state_is_leaf = !self.exit_to(context, target_state.depth);
+            let curr_state_is_leaf = !self.exit_to(context, target_state);
             let mut entry_path: StatePath<Sm> = self.excess_entry_path(target_state); 
             let mut enter_target: bool = true;
 
@@ -155,7 +155,7 @@ impl<Sm: StateMachineDef> StateMachine<Sm, Init> {
 
     pub fn initial(mut self, context: &mut Sm) -> StateMachine<Sm, Run> {
         let target = <Sm as StateMachineDef>::initial(context);
-        self.transition(context, 1, target);
+        self.transition(context, None, target);
 
         StateMachine::<Sm, Run> {
             curr_state: self.curr_state,
@@ -174,7 +174,7 @@ impl<Sm: StateMachineDef> StateMachine<Sm, Run> {
             match handled {
                 Action::<Sm>::Handled => break,
                 Action::<Sm>::Transition(new_state) => {
-                    self.transition(context, state.depth, new_state);
+                    self.transition(context, Some(state), new_state);
                     break;
                 }
                 Action::Unhandled => (),
