@@ -1,5 +1,6 @@
 [package]
 name = "rsm"
+description = "A no_std hierarchical state machine and active-object framework for Rust."
 version = "0.0.1"
 repository = "https://github.com/zwaggoner/rsm"
 readme = "README.md"
