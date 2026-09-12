@@ -48,8 +48,6 @@ stateDiagram-v2
 
 You can implement the following:
 ```rs
-extern crate hsm_rs;
-
 use hsm_rs::{
     Action, State, StateDef, StateMachineDef, StateMachine, StateRef, Super, Top,
 };
