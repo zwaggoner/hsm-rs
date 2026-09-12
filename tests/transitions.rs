@@ -713,21 +713,21 @@ fn test_deep_initial() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Initial transitions must be to a valid child state")]
 fn test_invalid_initial_transition_to_self() {
     let mut test_actor = TestActor::new(InitialTransitionTestType::InvalidSelf);
     let _sm = StateMachine::default().initial(&mut test_actor);
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Initial transitions must be to a valid child state")]
 fn test_invalid_initial_transition_to_sibling() {
     let mut test_actor = TestActor::new(InitialTransitionTestType::InvalidSibling);
     let _sm = StateMachine::default().initial(&mut test_actor);
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Initial transitions must be to a valid child state")]
 fn test_invalid_initial_transition_to_ancestor() {
     let mut test_actor = TestActor::new(InitialTransitionTestType::InvalidAncestor);
     let _sm = StateMachine::default().initial(&mut test_actor);

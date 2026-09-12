@@ -38,7 +38,7 @@ impl StateDef<State1> for TestActor {
 
         match event {
             TestEvent::Event1 => Action::Handled,
-            _ => Action::Unhandled,
+            TestEvent::Event2 => Action::Unhandled,
         }
     }
 
@@ -67,7 +67,7 @@ impl StateDef<State11> for TestActor {
 
         match event {
             TestEvent::Event2 => Action::Transition(State2::state()),
-            _ => Action::Unhandled,
+            TestEvent::Event1 => Action::Unhandled,
         }
     }
 
@@ -96,7 +96,7 @@ impl StateDef<State2> for TestActor {
 
         match event {
             TestEvent::Event1 => Action::Transition(State11::state()),
-            _ => Action::Unhandled,
+            TestEvent::Event2 => Action::Unhandled,
         }
     }
 

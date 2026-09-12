@@ -87,12 +87,13 @@ mod tests {
 
     #[test]
     fn push_pop() {
+        const TEST_LEN: usize = 3;
+
         let mut v: FixedVec<i32, 3> = FixedVec::new();
 
         assert_eq!(v.len(), 0);
         assert_eq!(v.pop(), None);
 
-        const TEST_LEN: usize = 3;
         let test: [i32; TEST_LEN] = [1, 2, 3];
 
         for val in test {
@@ -143,7 +144,7 @@ mod tests {
         counter: &'a Cell<usize>,
     }
 
-    impl<'a> Drop for DropCounter<'a> {
+    impl Drop for DropCounter<'_> {
         fn drop(&mut self) {
             let v = self.counter.get();
             self.counter.set(v + 1);
@@ -200,9 +201,10 @@ mod tests {
 
     #[test]
     fn reverse() {
+        const TEST_LEN: usize = 3;
+
         let mut v: FixedVec<i32, 3> = FixedVec::new();
 
-        const TEST_LEN: usize = 3;
         let test: [i32; TEST_LEN] = [1, 2, 3];
 
         for val in test {

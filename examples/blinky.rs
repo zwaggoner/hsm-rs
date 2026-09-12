@@ -31,8 +31,17 @@ enum BlinkEvent {
 
 type LedType = gpio::PA5<Output<PushPull>>;
 
+struct SharedPeripherals {
+    blink_timer: CounterMs<TIM2>,
+    debounce_timer: CounterMs<TIM3>,
+    button: gpio::PC13<Input>,
+}
+
+type SharedPeripheralAccess = Mutex<RefCell<Option<SharedPeripherals>>>;
+
 struct Blinky {
     led: LedType,
+    shared_peripheral_access: &'static SharedPeripheralAccess,
     divisor: u32,
 }
 
@@ -40,15 +49,24 @@ impl Blinky {
     const MAX_UPDATE_RATE: u32 = 2000;
     const MAX_DIVISOR: u32 = 4;
 
-    fn new(led: LedType) -> Self {
-        Self { led, divisor: 1 }
+    fn new(led: LedType, shared_peripheral_access: &'static SharedPeripheralAccess) -> Self {
+        Self {
+            led,
+            shared_peripheral_access,
+            divisor: 1,
+        }
     }
 
     fn configure_blink_timer(&mut self) {
         let update_rate = Self::MAX_UPDATE_RATE / self.divisor;
 
         cortex_m::interrupt::free(|cs| {
-            if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
+            if let Some(shared) = self
+                .shared_peripheral_access
+                .borrow(cs)
+                .borrow_mut()
+                .as_mut()
+            {
                 shared.blink_timer.start(update_rate.millis()).unwrap();
             }
         });
@@ -58,7 +76,12 @@ impl Blinky {
         let mut button_state = false;
 
         cortex_m::interrupt::free(|cs| {
-            if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
+            if let Some(shared) = self
+                .shared_peripheral_access
+                .borrow(cs)
+                .borrow_mut()
+                .as_mut()
+            {
                 button_state = shared.button.is_high();
             }
         });
@@ -68,7 +91,12 @@ impl Blinky {
 
     fn enable_button_event(&mut self) {
         cortex_m::interrupt::free(|cs| {
-            if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
+            if let Some(shared) = self
+                .shared_peripheral_access
+                .borrow(cs)
+                .borrow_mut()
+                .as_mut()
+            {
                 unsafe {
                     shared.button.clear_interrupt_pending_bit();
                     cortex_m::peripheral::NVIC::unmask(shared.button.interrupt());
@@ -79,7 +107,12 @@ impl Blinky {
 
     fn start_debounce_timer(&mut self) {
         cortex_m::interrupt::free(|cs| {
-            if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
+            if let Some(shared) = self
+                .shared_peripheral_access
+                .borrow(cs)
+                .borrow_mut()
+                .as_mut()
+            {
                 shared.debounce_timer.start(20.millis()).unwrap();
                 shared.debounce_timer.listen(Event::Update);
             }
@@ -122,7 +155,7 @@ impl StateDef<BlinkyTop> for Blinky {
                 self.enable_button_event();
                 Action::Handled
             }
-            _ => Action::Unhandled,
+            BlinkEvent::Timeout => Action::Unhandled,
         }
     }
 }
@@ -165,20 +198,14 @@ type BlinkEventQueue = MpmcBoundedQueue<BlinkEvent, 32>;
 
 static ACTOR: Actor<Blinky, BlinkEventQueue> = Actor::new(BlinkEventQueue::new());
 
-struct Shared {
-    blink_timer: CounterMs<TIM2>,
-    debounce_timer: CounterMs<TIM3>,
-    button: gpio::PC13<Input>,
-}
-
-static SHARED: Mutex<RefCell<Option<Shared>>> = Mutex::new(RefCell::new(None));
+static SHARED_PERIPHERAL_ACCESS: SharedPeripheralAccess = Mutex::new(RefCell::new(None));
 
 #[interrupt]
 fn TIM2() {
     let _ = ACTOR.enqueue(BlinkEvent::Timeout);
 
     cortex_m::interrupt::free(|cs| {
-        if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
+        if let Some(shared) = SHARED_PERIPHERAL_ACCESS.borrow(cs).borrow_mut().as_mut() {
             shared.blink_timer.clear_all_flags();
         }
     });
@@ -189,7 +216,7 @@ fn TIM3() {
     let _ = ACTOR.enqueue(BlinkEvent::DebounceTimeout);
 
     cortex_m::interrupt::free(|cs| {
-        if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
+        if let Some(shared) = SHARED_PERIPHERAL_ACCESS.borrow(cs).borrow_mut().as_mut() {
             let _ = shared.debounce_timer.cancel();
             shared.debounce_timer.clear_all_flags();
         }
@@ -199,7 +226,7 @@ fn TIM3() {
 #[interrupt]
 fn EXTI15_10() {
     cortex_m::interrupt::free(|cs| {
-        if let Some(shared) = SHARED.borrow(cs).borrow_mut().as_mut() {
+        if let Some(shared) = SHARED_PERIPHERAL_ACCESS.borrow(cs).borrow_mut().as_mut() {
             cortex_m::peripheral::NVIC::mask(shared.button.interrupt());
             shared.button.clear_interrupt_pending_bit();
         }
@@ -215,12 +242,12 @@ fn main() -> ! {
         let mut rcc = dp.RCC.freeze(Config::hsi().sysclk(48.MHz()));
 
         // Configure LED GPIO
-        let gpioa = dp.GPIOA.split(&mut rcc);
-        let led = gpioa.pa5.into_push_pull_output();
+        let led_gpio_port = dp.GPIOA.split(&mut rcc);
+        let led = led_gpio_port.pa5.into_push_pull_output();
 
         // Configure Button GPIO
-        let gpioc = dp.GPIOC.split(&mut rcc);
-        let mut button = gpioc.pc13;
+        let button_gpio_port = dp.GPIOC.split(&mut rcc);
+        let mut button = button_gpio_port.pc13;
 
         // Get syscfg HAL
         let mut syscfg = dp.SYSCFG.constrain(&mut rcc);
@@ -238,7 +265,7 @@ fn main() -> ! {
         let debounce_timer = dp.TIM3.counter_ms(&mut rcc);
 
         // Construct the Blinky context object
-        let context = Blinky::new(led);
+        let context = Blinky::new(led, &SHARED_PERIPHERAL_ACCESS);
 
         // Unmask all of the interrupts we are going to use
         unsafe {
@@ -249,11 +276,13 @@ fn main() -> ! {
 
         // Configure the shared object with everything needed in the ISR context
         cortex_m::interrupt::free(|cs| {
-            SHARED.borrow(cs).replace(Some(Shared {
-                blink_timer,
-                debounce_timer,
-                button,
-            }));
+            SHARED_PERIPHERAL_ACCESS
+                .borrow(cs)
+                .replace(Some(SharedPeripherals {
+                    blink_timer,
+                    debounce_timer,
+                    button,
+                }));
         });
 
         // Configure the blinky actor with the context object and consumer
