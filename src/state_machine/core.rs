@@ -11,15 +11,15 @@ impl<Sm: StateMachineDef + 'static> State<Sm> {
         Self { desc }
     }
 
-    pub(in crate::state_machine) fn depth(self) -> usize {
+    pub(in crate::state_machine) const fn depth(self) -> usize {
         self.desc.depth
     }
 
-    pub(in crate::state_machine) fn parent(self) -> Option<State<Sm>> {
+    pub(in crate::state_machine) const fn parent(self) -> Option<Self> {
         self.desc.parent
     }
 
-    pub(in crate::state_machine) fn initial(self, context: &mut Sm) -> Option<State<Sm>> {
+    pub(in crate::state_machine) fn initial(self, context: &mut Sm) -> Option<Self> {
         (self.desc.initial)(context)
     }
 

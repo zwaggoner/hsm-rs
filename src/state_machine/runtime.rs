@@ -271,7 +271,7 @@ impl<Sm: StateMachineDef> Default for StateMachine<Sm, Init> {
 impl<Sm: StateMachineDef> StateMachine<Sm, Init> {
     /// Instantiates a new state machine
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             curr_state: None,
             _pd: PhantomData::<Init>,
@@ -368,7 +368,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(
+        expected = "Invalid Transition: This transition requires an exit, but exits not permitted"
+    )]
     fn test_invalid_configuration() {
         let mut actor = TestActor {};
         let mut sm = StateMachine::<TestActor>::default().initial(&mut actor);

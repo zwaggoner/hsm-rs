@@ -43,22 +43,22 @@ pub enum StepStatus {
 impl StepStatus {
     /// Function returning if the `StepStatus` is `Idle`
     #[must_use]
-    pub fn is_idle(&self) -> bool {
-        matches!(self, StepStatus::Idle)
+    pub const fn is_idle(&self) -> bool {
+        matches!(self, Self::Idle)
     }
 
     /// Function returning if `StepStatus` indicates that there is a pending event
     #[must_use]
-    pub fn is_pending(&self) -> bool {
+    pub const fn is_pending(&self) -> bool {
         match self {
-            StepStatus::Initialized { pending } | StepStatus::Ran { pending } => *pending,
-            StepStatus::Idle => false,
+            Self::Initialized { pending } | Self::Ran { pending } => *pending,
+            Self::Idle => false,
         }
     }
 
     /// Function returning if `StepStatus` indicates that there was work done
     #[must_use]
-    pub fn did_work(&self) -> bool {
+    pub const fn did_work(&self) -> bool {
         !self.is_idle()
     }
 }
@@ -70,7 +70,7 @@ enum CurrSM<Sm: StateMachineDef + 'static> {
 
 impl<Sm: StateMachineDef> Default for CurrSM<Sm> {
     fn default() -> Self {
-        CurrSM::Init(StateMachine::<Sm>::default())
+        Self::Init(StateMachine::<Sm>::default())
     }
 }
 

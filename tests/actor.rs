@@ -46,7 +46,7 @@ fn test_bind() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Actor has already been bound.")]
 fn test_bind_once() {
     let actor = Actor::<TestActor, EventQueue>::new(EventQueue::default());
 

@@ -19,7 +19,7 @@ jobs:
     - name: Formatting check
       run: cargo fmt --check
     - name: Lints
-      run: cargo clippy -- -Dclippy::pedantic
+      run: cargo clippy --all-targets -- -Dclippy::pedantic
     - name: Build
       run: cargo build --verbose
     - name: Run tests
@@ -30,5 +30,7 @@ jobs:
       run: cargo build --examples
     - name: Add embedded target
       run: rustup target add thumbv7em-none-eabihf
+    - name: Embedded example lints
+      run: cargo clippy --example blinky --features blinky-example --target thumbv7em-none-eabihf -- -Dclippy::pedantic
     - name: Build embedded example
       run: cargo build --example blinky --features blinky-example --target thumbv7em-none-eabihf

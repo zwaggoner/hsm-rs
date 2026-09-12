@@ -57,7 +57,7 @@ impl<T, const SIZE: usize> MpmcBoundedQueue<T, SIZE> {
     pub const fn new() -> Self {
         assert!(SIZE >= 2, "Queue size must be at least two elements");
         assert!(SIZE.is_power_of_two(), "Queue size must be a power of two");
-        MpmcBoundedQueue::<T, SIZE> {
+        Self {
             buffer: {
                 let mut buf = [const {
                     Slot::<T> {
