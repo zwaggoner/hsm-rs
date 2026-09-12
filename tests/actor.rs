@@ -1,6 +1,3 @@
-extern crate hsm_rs;
-extern crate std;
-
 use hsm_rs::actor::{Actor, ActorRuntime, StepStatus, queue::MpmcBoundedQueue};
 use hsm_rs::{State, StateDef, StateMachineDef, StateRef, Top};
 
