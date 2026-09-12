@@ -1,5 +1,3 @@
-extern crate hsm_rs;
-
 use hsm_rs::{Action, State, StateDef, StateMachine, StateMachineDef, StateRef, Super, Top};
 
 enum TestEvent {

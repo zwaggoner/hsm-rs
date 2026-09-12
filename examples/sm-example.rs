@@ -1,5 +1,3 @@
-extern crate hsm_rs;
-
 use hsm_rs::{
     Action, State, StateDef, StateMachineDef, StateRef, Super, Top,
     actor::{Actor, ActorRuntime, queue::MpmcBoundedQueue},

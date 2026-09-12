@@ -1,6 +1,3 @@
-extern crate hsm_rs;
-extern crate std;
-
 use hsm_rs::{Action, State, StateDef, StateMachine, StateMachineDef, StateRef, Super, Top};
 
 use std::vec::Vec;
